@@ -1,35 +1,58 @@
-import React, {useMemo, useState} from 'react';
+import React, {useMemo, useState, useEffect} from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-    Plus, Search, Stethoscope, Camera, Briefcase, Scissors,
-    ArrowUpRight, ChevronLeft, ChevronRight
+    Plus, Search, LayoutList
 } from 'lucide-react';
 import FilterDropdown from "../../components/dropdowns/FilterDropdown.jsx";
 import {ServiceCard} from "./ServiceCard.jsx";
 import {ServiceFooter} from "./ServiceFooter.jsx";
-
-const servicesData = [
-    { id: 'SRV-001', category: 'Medical', title: 'Initial Dental Exam', billing: { rate: '$120' }, duration: '45m', status: 'Available', icon: Stethoscope },
-    { id: 'SRV-002', category: 'Creative', title: 'Brand Campaign', billing: { rate: '$2,400' }, duration: '2w', status: 'Waitlist', icon: Camera },
-    { id: 'SRV-003', category: 'Professional', title: 'Tax Consultation', billing: { rate: '$150/hr' }, duration: '60m', status: 'Available', icon: Briefcase },
-    { id: 'SRV-004', category: 'Lifestyle', title: 'Signature Cut', billing: { rate: '$65' }, duration: '45m', status: 'Available', icon: Scissors },
-];
+import AdminBookingModal from "../../components/AdminBookingModal.jsx";
+import { ServiceService, BookingService } from "../../api/services.js";
 
 const Services = () => {
+    const [services, setServices] = useState([]);
     const [filter, setFilter] = useState('All');
     const [search, setSearch] = useState('');
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selectedService, setSelectedService] = useState(null);
+    const [isLoadingServices, setIsLoadingServices] = useState(true);
+
+    useEffect(() => {
+        ServiceService.getServices().then(data => {
+            setServices(data);
+            setIsLoadingServices(false);
+        });
+    }, []);
 
     const filteredData = useMemo(() => {
-        return servicesData.filter(item => {
+        return services.filter(item => {
             const matchesFilter = filter === 'All' || item.category === filter;
-            const matchesSearch = item.title.toLowerCase().includes(search.toLowerCase());
+            const matchesSearch = item.title.toLowerCase().includes(search.toLowerCase()) ||
+                                  item.subcategory?.toLowerCase().includes(search.toLowerCase());
             return matchesFilter && matchesSearch;
         });
-    }, [filter, search]);
+    }, [filter, search, services]);
+
+    const handleServiceSelect = (service) => {
+        setSelectedService(service);
+        setModalOpen(true);
+    };
+
+    const handleBookingConfirm = async (bookingData) => {
+        const result = await BookingService.createBooking(bookingData);
+        if (result.success && result.appointment) {
+            console.log('Booking created successfully:', result.appointment);
+            // You can emit an event or call a callback to update the Schedules page
+            // For now, we'll just show success in the UI
+        }
+        return result;
+    };
+
+    const categories = ['All', 'Studio', 'Event'];
 
 
     return (
-        <div className="bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden font-sans">
+        <div className="bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden font-sans h-full">
 
             {/* --- HEADER --- */}
             <header className="flex items-center justify-between gap-3 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 shrink-0 relative z-20">
@@ -50,7 +73,7 @@ const Services = () => {
                     <FilterDropdown
                         activeFilter={filter}
                         onSelect={setFilter}
-                        options={["Medical", "Creative", "Professional", "Lifestyle"]}
+                        options={categories}
                     />
                     <button className="h-10 w-10 bg-[#f87941] text-white rounded-xl flex items-center justify-center shadow-lg shadow-[#f87941]/20 active:scale-95 transition-all">
                         <Plus size={16} strokeWidth={3} />
@@ -70,20 +93,49 @@ const Services = () => {
                     </div>
 
                     <AnimatePresence mode="popLayout">
-                        {filteredData.map((service) => (
-                            <ServiceCard key={service.id} service={service}/>
-                        ))}
+                        {isLoadingServices ? (
+                            <div key="loading" className="py-8 text-center text-[#b1b1b1]">
+                                <p className="text-[10px] font-bold uppercase">Loading services...</p>
+                            </div>
+                        ) : (
+                            filteredData.map((service) => (
+                                <ServiceCard
+                                    key={service.id}
+                                    service={service}
+                                    onSelectService={handleServiceSelect}
+                                />
+                            ))
+                        )}
                     </AnimatePresence>
 
                     {/* New SKU Register Trigger */}
-                    <button className="group mt-2 py-4 border-2 border-dashed border-[#f4f2f4] dark:border-white/5 rounded-2xl flex items-center justify-center gap-3 text-[#b1b1b1] hover:border-[#f87941]/30 hover:text-[#f87941] transition-all">
-                        <Plus size={14} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-300" />
-                        <span className="text-[8px] font-black uppercase tracking-[0.3em]">Add Service</span>
-                    </button>
+                    {!isLoadingServices && filteredData.length === 0 && (
+                        <div key="empty" className="py-8 text-center text-[#b1b1b1]">
+                            <p className="text-[10px] font-bold uppercase">No services found</p>
+                        </div>
+                    )}
+
+                    {!isLoadingServices && (
+                        <button className="group mt-2 py-4 border-2 border-dashed border-[#f4f2f4] dark:border-white/5 rounded-2xl flex items-center justify-center gap-3 text-[#b1b1b1] hover:border-[#f87941]/30 hover:text-[#f87941] transition-all">
+                            <Plus size={14} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-300" />
+                            <span className="text-[8px] font-black uppercase tracking-[0.3em]">Add Service</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
-            <ServiceFooter currentCount={filteredData.length} totalCount={servicesData.length}/>
+            {!isLoadingServices && <ServiceFooter currentCount={filteredData.length} totalCount={services.length}/>}
+
+            {/* Admin Booking Modal */}
+            <AdminBookingModal
+                isOpen={modalOpen}
+                onClose={() => {
+                    setModalOpen(false);
+                    setSelectedService(null);
+                }}
+                service={selectedService}
+                onConfirm={handleBookingConfirm}
+            />
         </div>
     );
 };

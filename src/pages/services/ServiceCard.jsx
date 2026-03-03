@@ -3,8 +3,18 @@ import { motion } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
 import clsx from 'clsx';
 
-export const ServiceCard = ({ service }) => {
-    const { id, category, title, billing, duration, status, icon: Icon } = service;
+export const ServiceCard = ({ service, onSelectService }) => {
+    const { id, category, subcategory, title, basePrice, duration, status, icon: Icon } = service;
+
+    const formatCurrency = (value) => {
+        return `₱${value.toLocaleString()}`;
+    };
+
+    const handleClick = () => {
+        if (onSelectService) {
+            onSelectService(service);
+        }
+    };
 
     return (
         <motion.div
@@ -12,7 +22,9 @@ export const ServiceCard = ({ service }) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="group relative bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/5 rounded-2xl p-4 md:p-5 flex items-center justify-between transition-all hover:shadow-xl hover:shadow-[#000]/5 hover:border-[#f87941]/20"
+            whileTap={{ scale: 0.98 }}
+            onClick={handleClick}
+            className="group relative bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/5 rounded-2xl p-4 md:p-5 flex items-center justify-between transition-all hover:shadow-xl hover:shadow-[#000]/5 hover:border-[#f87941]/20 cursor-pointer"
         >
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 group-hover:h-8 bg-[#f87941] rounded-r-full transition-all duration-300" />
 
@@ -26,6 +38,11 @@ export const ServiceCard = ({ service }) => {
                     <h3 className="text-[12px] font-black uppercase tracking-tight truncate group-hover:text-[#f87941] transition-colors">
                         {title}
                     </h3>
+                    {subcategory && (
+                        <span className="text-[8px] font-bold text-[#b1b1b1] uppercase tracking-wider">
+                            {subcategory}
+                        </span>
+                    )}
                 </div>
             </div>
 
@@ -39,7 +56,7 @@ export const ServiceCard = ({ service }) => {
             {/* Price */}
             <div className="hidden md:block w-[15%] text-center">
                 <span className="text-xs font-black tracking-tight text-[#2f3035] dark:text-white">
-                    {billing.rate}
+                    {formatCurrency(basePrice)}
                 </span>
             </div>
 

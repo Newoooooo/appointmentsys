@@ -12,10 +12,20 @@ import FilterDropdown from "../../components/dropdowns/FilterDropdown.jsx";
 const Schedules = () => {
     const [view, setView] = useState('day');
     const [activeDay, setActiveDay] = useState('12');
+    const [appointments, setAppointments] = useState([
+        { id: 'A-1', time: '10:00', name: 'Alex Johnson', room: 'R-02', day: '12', type: 'urgent', staff: 'Dr. Adams' },
+        { id: 'A-2', time: '13:00', name: 'Sarah Smith', room: 'St-B', day: '12', type: 'normal', staff: 'Nurse Joy' },
+        { id: 'A-3', time: '11:00', name: 'Mike Ross', room: 'Web', day: '13', type: 'normal', staff: 'Dr. Smith' },
+    ]);
+    
     const staffColors = {
         'Dr. Adams': { bg: 'bg-blue-500', border: 'border-blue-500/20', text: '#3b82f6' },
         'Nurse Joy': { bg: 'bg-emerald-500', border: 'border-emerald-500/20', text: '#10b981' },
         'Dr. Smith': { bg: 'bg-purple-500', border: 'border-purple-500/20', text: '#a855f7' },
+        'Jordan Smith': { bg: 'bg-indigo-500', border: 'border-indigo-500/20', text: '#6366f1' },
+        'Elena Rodriguez': { bg: 'bg-cyan-500', border: 'border-cyan-500/20', text: '#06b6d4' },
+        'Marcus Thompson': { bg: 'bg-pink-500', border: 'border-pink-500/20', text: '#ec4899' },
+        'Sarah Chen': { bg: 'bg-lime-500', border: 'border-lime-500/20', text: '#84cc16' },
     };
 
     const hours = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
@@ -26,11 +36,10 @@ const Schedules = () => {
         { label: 'Sat', date: '17' },
     ];
 
-    const appointments = [
-        { id: 'A-1', time: '10:00', name: 'Alex Johnson', room: 'R-02', day: '12', type: 'urgent', staff: 'Dr. Adams' },
-        { id: 'A-2', time: '13:00', name: 'Sarah Smith', room: 'St-B', day: '12', type: 'normal', staff: 'Nurse Joy' },
-        { id: 'A-3', time: '11:00', name: 'Mike Ross', room: 'Web', day: '13', type: 'normal', staff: 'Dr. Smith' },
-    ];
+    // Function to add new appointments from bookings
+    const addAppointment = (newAppointment) => {
+        setAppointments(prev => [...prev, newAppointment]);
+    };
 
     return (
         <div className="bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6">
