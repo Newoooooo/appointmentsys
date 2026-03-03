@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, Camera } from 'lucide-react';
 import clsx from 'clsx';
 
 export const ServiceCard = ({ service, onSelectService }) => {
@@ -24,14 +24,14 @@ export const ServiceCard = ({ service, onSelectService }) => {
             exit={{ opacity: 0, scale: 0.95 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleClick}
-            className="group relative bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/5 rounded-2xl p-4 md:p-5 flex items-center justify-between transition-all hover:shadow-xl hover:shadow-[#000]/5 hover:border-[#f87941]/20 cursor-pointer"
+            className="group relative bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/5 rounded-2xl p-4 md:p-5 flex items-center justify-between transition-all hover:shadow-xl hover:shadow-black/5 hover:border-[#f87941]/20 cursor-pointer"
         >
             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-0 group-hover:h-8 bg-[#f87941] rounded-r-full transition-all duration-300" />
 
             {/* Identity */}
             <div className="flex items-center gap-5 w-full md:w-[30%] min-w-0">
                 <div className="w-10 h-10 shrink-0 rounded-xl bg-[#fdfcfc] dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 flex items-center justify-center text-[#f87941] group-hover:bg-[#f87941] group-hover:text-white transition-all duration-300">
-                    <Icon size={18} strokeWidth={2} />
+                    {Icon ? <Icon size={18} strokeWidth={2} /> : <Camera size={18} strokeWidth={2} />}
                 </div>
                 <div className="min-w-0">
                     <span className="text-[7px] font-black text-[#f87941] tracking-[0.2em] uppercase block mb-0.5">{id}</span>

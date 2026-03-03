@@ -1,50 +1,16 @@
-import React, { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import AppLayout from '../layouts/AppLayout.jsx';
-import LoadingOverlay from '../components/LoadingOverlay.jsx';
+import React from 'react';
+import { motion } from 'framer-motion';
 
-const LandingPage = lazy(() => import('../pages/Landing.jsx'));
-const AuthPage = lazy(() => import('../pages/AuthPage.jsx'));
-const Dashboard = lazy(() => import('../pages/dashboard/Dashboard.jsx'));
-const CalendarView = lazy(() => import('../pages/schedule/Schedules.jsx'));
-const ServicesManagement = lazy(() => import('../pages/services/Services.jsx'));
-const StaffManagement = lazy(() => import('../pages/Staff.jsx'));
-const HistoryView = lazy(() => import('../pages/History.jsx'));
-const KanbanPage = lazy(() => import('../pages/kanban/Kanban.jsx'));
-const Customers = lazy(() => import('../pages/Customers.jsx'));
-const IntegrationsPage = lazy(() => import('../pages/Integrations.jsx'));
-const InquiriesPage = lazy(() => import('../pages/inquiries/Inquiries.jsx'));
-const Settings = lazy(() => import('../pages/Settings.jsx'));
-const NotFound = lazy(() => import('../pages/NotFound.jsx'));
-
-const App = () => {
+const LoadingOverlay = () => {
     return (
-        <BrowserRouter>
-            <Suspense fallback={<LoadingOverlay />}>
-                <Routes>
-                    {/* Public Routes */}
-                    <Route path="/" element={<LandingPage />} />
-                    <Route path="/login" element={<AuthPage />} />
-
-                    {/* Protected Dashboard Routes */}
-                    <Route path="/*" element={<AppLayout />}>
-                        <Route path="dashboard" index element={<Dashboard />} />
-                        <Route path="calendar" element={<CalendarView />} />
-                        <Route path="services" element={<ServicesManagement />} />
-                        <Route path="staff" element={<StaffManagement />} />
-                        <Route path="history" element={<HistoryView />} />
-                        <Route path="kanban" element={<KanbanPage />} />
-                        <Route path="customers" element={<Customers />} />
-                        <Route path="integrations" element={<IntegrationsPage />} />
-                        <Route path="inquiries" element={<InquiriesPage />} />
-                        <Route path="settings" element={<Settings />} />
-                    </Route>
-
-                    <Route path="*" element={<NotFound />} />
-                </Routes>
-            </Suspense>
-        </BrowserRouter>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+            <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                className="w-12 h-12 border-3 border-[#f87941]/20 border-t-[#f87941] rounded-full"
+            />
+        </div>
     );
 };
 
-export default App;
+export default LoadingOverlay;
