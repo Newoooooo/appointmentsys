@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus, X, XCircle } from 'lucide-react';
 import clsx from 'clsx';
 import DailyListView from './DailyListView.jsx';
 import WeeklyGridView from './WeeklyGridView.jsx';
@@ -8,6 +8,8 @@ import FilterDropdown from '../../components/dropdowns/FilterDropdown.jsx';
 import AddBookingModal from '../../components/modals/AddBookingModal.jsx';
 import ViewBookingModal from '../../components/modals/ViewBookingModal.jsx';
 import { BookingService, ServiceService } from '../../api/services.js';
+
+const CANCELLED_STATUSES = ['Cancelled', 'cancelled'];
 
 const formatLocalISODate = (date) => {
     const year = date.getFullYear();
@@ -119,6 +121,8 @@ const Schedules = () => {
     const [rangeStart, setRangeStart] = useState('');
     const [rangeEnd, setRangeEnd] = useState('');
     const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeekMonday(today));
+    const [cancelledModalOpen, setCancelledModalOpen] = useState(false);
+    const [cancelledSearch, setCancelledSearch] = useState('');
 
     useEffect(() => {
         const unsubscribe = BookingService.subscribeToBookings((bookings) => {
@@ -241,9 +245,15 @@ const Schedules = () => {
             const inCategory = selectedCategory === 'All' || appointment.category === selectedCategory;
             const inStartRange = !normalizedRange.start || appointment.fullDate >= formatLocalISODate(normalizedRange.start);
             const inEndRange = !normalizedRange.end || appointment.fullDate <= formatLocalISODate(normalizedRange.end);
-            return inCategory && inStartRange && inEndRange;
+            // Only show active (non-cancelled) bookings on the calendar grid
+            const isActive = !CANCELLED_STATUSES.includes(appointment.status);
+            return inCategory && inStartRange && inEndRange && isActive;
         });
     }, [appointments, normalizedRange.end, normalizedRange.start, selectedCategory]);
+
+    const cancelledAppointments = useMemo(() => {
+        return appointments.filter((a) => CANCELLED_STATUSES.includes(a.status));
+    }, [appointments]);
 
     const canGoPrev = useMemo(() => {
         if (!minWeekStart) return true;
@@ -267,8 +277,8 @@ const Schedules = () => {
         'Sarah Chen': { bg: 'bg-lime-500', border: 'border-lime-500/20', text: '#84cc16' }
     };
 
-    const hours = Array.from({ length: 29 }, (_, index) => {
-        const totalMinutes = (7 * 60) + (index * 30);
+    const hours = Array.from({ length: 33 }, (_, index) => {
+        const totalMinutes = (6 * 60) + (index * 30);
         const hour = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
         const minute = String(totalMinutes % 60).padStart(2, '0');
         return `${hour}:${minute}`;
@@ -398,6 +408,14 @@ const Schedules = () => {
                         />
 
                         <button
+                            onClick={() => setCancelledModalOpen(true)}
+                            className="h-9 px-3 border border-red-400/50 text-red-500 dark:text-red-400 rounded-xl flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-red-500/10 transition-all shrink-0"
+                        >
+                            <XCircle size={12} />
+                            Cancelled
+                        </button>
+
+                        <button
                             onClick={handleOpenBookingModal}
                             className="h-9 w-9 bg-[#F26389] text-white rounded-xl flex items-center justify-center shadow-lg shadow-[#F26389]/20 shrink-0"
                         >
@@ -480,6 +498,90 @@ const Schedules = () => {
                 onEdit={handleEditBooking}
                 onDeleted={handleBookingDeleted}
             />
+
+            {/* Cancelled Bookings Modal */}
+            <AnimatePresence>
+                {cancelledModalOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setCancelledModalOpen(false)}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white dark:bg-[#111] rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col overflow-hidden"
+                        >
+                            <div className="flex items-center justify-between p-6 border-b border-[#f4f2f4] dark:border-white/10">
+                                <h2 className="text-base font-black uppercase tracking-wide">
+                                    Cancelled Bookings
+                                    {cancelledAppointments.length > 0 && (
+                                        <span className="ml-2 px-2 py-0.5 bg-red-500/10 text-red-500 rounded-full text-xs">{cancelledAppointments.length}</span>
+                                    )}
+                                </h2>
+                                <button onClick={() => setCancelledModalOpen(false)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-all">
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <div className="p-4 border-b border-[#f4f2f4] dark:border-white/10">
+                                <input
+                                    type="text"
+                                    value={cancelledSearch}
+                                    onChange={(e) => setCancelledSearch(e.target.value)}
+                                    placeholder="Search by client, service, staff..."
+                                    className="w-full px-3 py-2 border border-[#e6e4e6] dark:border-white/10 rounded-xl text-sm bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                />
+                            </div>
+                            <div className="flex-1 overflow-y-auto">
+                                {cancelledAppointments.length === 0 ? (
+                                    <div className="flex items-center justify-center h-32 text-[#b1b1b1] text-sm">No cancelled bookings</div>
+                                ) : (
+                                    <table className="w-full text-xs">
+                                        <thead className="sticky top-0 bg-white dark:bg-[#111] border-b border-[#f4f2f4] dark:border-white/10">
+                                            <tr>
+                                                {['Client', 'Date', 'Time', 'Service', 'Category', 'Staff', 'Cancelled At', 'Reason'].map((h) => (
+                                                    <th key={h} className="px-4 py-3 text-left font-black uppercase tracking-widest text-[#b1b1b1] text-[9px]">{h}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {cancelledAppointments
+                                                .filter((a) => {
+                                                    if (!cancelledSearch.trim()) return true;
+                                                    const q = cancelledSearch.toLowerCase();
+                                                    return (
+                                                        (a.clientName || '').toLowerCase().includes(q) ||
+                                                        (a.serviceTitle || '').toLowerCase().includes(q) ||
+                                                        (a.staffName || '').toLowerCase().includes(q) ||
+                                                        (a.category || '').toLowerCase().includes(q)
+                                                    );
+                                                })
+                                                .map((a) => (
+                                                    <tr key={a.id} className="border-b border-[#f4f2f4] dark:border-white/5 hover:bg-[#fdfcfc] dark:hover:bg-white/5 transition-colors">
+                                                        <td className="px-4 py-3 font-bold">{a.clientName || '—'}</td>
+                                                        <td className="px-4 py-3 text-[#b1b1b1]">{a.date || a.fullDate || '—'}</td>
+                                                        <td className="px-4 py-3 text-[#b1b1b1]">{a.startTime || a.time || '—'}</td>
+                                                        <td className="px-4 py-3">{a.serviceTitle || a.room || '—'}</td>
+                                                        <td className="px-4 py-3 text-[#b1b1b1]">{a.category || '—'}</td>
+                                                        <td className="px-4 py-3 text-[#b1b1b1]">{a.staffName || a.staff || '—'}</td>
+                                                        <td className="px-4 py-3 text-[#b1b1b1]">
+                                                            {a.cancelledAt ? new Date(a.cancelledAt).toLocaleDateString() : '—'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-[#b1b1b1] max-w-32 truncate">{a.cancellationReason || '—'}</td>
+                                                    </tr>
+                                                ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
