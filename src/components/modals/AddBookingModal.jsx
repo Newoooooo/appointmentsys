@@ -1,33 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { ServiceService, StaffService, BookingService, CategoryService } from '../../api/services';
 
-const HOUR_OPTIONS = Array.from({ length: 15 }, (_, index) => {
-    const hour = index + 7;
-    return String(hour).padStart(2, '0');
-});
+const HOUR_OPTIONS = Array.from({ length: 15 }, (_, i) => String(i + 7).padStart(2, '0'));
 
 const MINUTE_OPTIONS = ['00', '15', '30', '45'];
 const BOOKING_SOURCES = ['Walk-in', 'Messenger'];
 
-const MONTH_OPTIONS = [
-    { value: '01', label: 'Jan' },
-    { value: '02', label: 'Feb' },
-    { value: '03', label: 'Mar' },
-    { value: '04', label: 'Apr' },
-    { value: '05', label: 'May' },
-    { value: '06', label: 'Jun' },
-    { value: '07', label: 'Jul' },
-    { value: '08', label: 'Aug' },
-    { value: '09', label: 'Sep' },
-    { value: '10', label: 'Oct' },
-    { value: '11', label: 'Nov' },
-    { value: '12', label: 'Dec' }
+const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const MONTH_LABELS = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
 ];
-
-const DAY_OPTIONS = Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, '0'));
-const YEAR_OPTIONS = Array.from({ length: 5 }, (_, index) => String(new Date().getFullYear() + index));
 
 const getNearestAllowedTime = (date = new Date()) => {
     let hour = date.getHours();
@@ -87,6 +72,9 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
     const [selectedService, setSelectedService] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [transportationFee, setTransportationFee] = useState(0);
+    const [calViewYear, setCalViewYear] = useState(now.getFullYear());
+    const [calViewMonth, setCalViewMonth] = useState(now.getMonth());
 
     const toMinutes = (hour, minute) => (Number(hour) * 60) + Number(minute);
     const toTimeParts = (totalMinutes) => {
@@ -110,6 +98,22 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
             StaffService.getStaff().then(setStaff).catch(console.error);
         }
     }, [isOpen]);
+
+    // Sync calendar view to selected date when modal opens
+    useEffect(() => {
+        if (!isOpen) return;
+        if (editingBooking?.date) {
+            const d = new Date(editingBooking.date);
+            if (!isNaN(d.getTime())) {
+                setCalViewYear(d.getFullYear());
+                setCalViewMonth(d.getMonth());
+                return;
+            }
+        }
+        const today = new Date();
+        setCalViewYear(today.getFullYear());
+        setCalViewMonth(today.getMonth());
+    }, [isOpen, editingBooking]);
 
     // Populate form when editing
     useEffect(() => {
@@ -145,6 +149,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
             }, {})
         });
 
+        setTransportationFee(editingBooking.transportationFee || 0);
         setCustomAddons(editingBooking.customAddons || []);
     }, [isOpen, editingBooking, services, categories]);
 
@@ -159,6 +164,10 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
             hour: prefillContext.hour || prev.hour,
             minute: prefillContext.minute || prev.minute
         }));
+        if (prefillContext.year && prefillContext.month) {
+            setCalViewYear(parseInt(prefillContext.year));
+            setCalViewMonth(parseInt(prefillContext.month) - 1);
+        }
     }, [isOpen, prefillContext]);
 
     useEffect(() => {
@@ -280,6 +289,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
         customAddons.forEach(addon => {
             total += addon.price || 0;
         });
+        total += transportationFee || 0;
         return total;
     };
 
@@ -337,6 +347,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                 totalPrice: calculateTotal(),
                 selectedAddons: selectedAddonsArray,
                 customAddons: customAddonsArray,
+                transportationFee: transportationFee || 0,
                 status: isEditMode ? (editingBooking.status || 'Confirmed') : 'Confirmed'
             };
 
@@ -364,6 +375,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                 staffId: '',
                 selectedAddons: {}
             });
+            setTransportationFee(0);
             setCustomAddons([]);
             setSelectedService(null);
             onSuccess?.();
@@ -375,6 +387,55 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
         }
     };
 
+    // ── Calendar helpers ────────────────────────────────────────────────────
+    const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+
+    const buildCalendarGrid = (y, m) => {
+        const firstDay = new Date(y, m, 1).getDay(); // 0 = Sun
+        const daysInMonth = getDaysInMonth(y, m);
+        const daysInPrev = getDaysInMonth(y, m === 0 ? 11 : m - 1);
+        const cells = [];
+        for (let i = firstDay - 1; i >= 0; i--) cells.push({ d: daysInPrev - i, type: 'prev' });
+        for (let d = 1; d <= daysInMonth; d++) cells.push({ d, type: 'cur' });
+        let nextDay = 1;
+        while (cells.length % 7 !== 0) cells.push({ d: nextDay++, type: 'next' });
+        return cells;
+    };
+
+    const handleCalPrev = () => {
+        if (calViewMonth === 0) { setCalViewYear(calViewYear - 1); setCalViewMonth(11); }
+        else setCalViewMonth(calViewMonth - 1);
+    };
+
+    const handleCalNext = () => {
+        if (calViewMonth === 11) { setCalViewYear(calViewYear + 1); setCalViewMonth(0); }
+        else setCalViewMonth(calViewMonth + 1);
+    };
+
+    const handleCalDayClick = (cell) => {
+        let y = calViewYear, m = calViewMonth;
+        if (cell.type === 'prev') { if (m === 0) { y--; m = 11; } else m--; }
+        else if (cell.type === 'next') { if (m === 11) { y++; m = 0; } else m++; }
+        setFormData(prev => ({
+            ...prev,
+            year: String(y),
+            month: String(m + 1).padStart(2, '0'),
+            day: String(cell.d).padStart(2, '0'),
+        }));
+        if (cell.type !== 'cur') { setCalViewYear(y); setCalViewMonth(m); }
+    };
+
+    const calToday = new Date();
+    const todayY = calToday.getFullYear(), todayM = calToday.getMonth(), todayD = calToday.getDate();
+    const selectedY = parseInt(formData.year), selectedM = parseInt(formData.month) - 1, selectedD = parseInt(formData.day);
+    const calCells = buildCalendarGrid(calViewYear, calViewMonth);
+
+    const selectedDateLabel = useMemo(() => {
+        const date = new Date(parseInt(formData.year), parseInt(formData.month) - 1, parseInt(formData.day));
+        return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }, [formData.year, formData.month, formData.day]);
+
+    // ── Render ───────────────────────────────────────────────────────────────
     return (
         <AnimatePresence>
             {isOpen && (
@@ -390,362 +451,366 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.95, opacity: 0 }}
                         onClick={e => e.stopPropagation()}
-                        className="bg-white dark:bg-[#111] rounded-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto"
+                        className="bg-white dark:bg-[#111] rounded-xl shadow-2xl w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col"
                     >
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-lg font-black uppercase tracking-wide">
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-white/10 shrink-0">
+                            <h2 className="text-sm font-black uppercase tracking-widest text-[#2f3035] dark:text-white">
                                 {isEditMode ? 'Edit Booking' : 'New Booking'}
                             </h2>
-                            <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-all">
-                                <X size={20} />
+                            <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-all text-gray-400 hover:text-gray-600">
+                                <X size={18} />
                             </button>
                         </div>
 
                         {error && (
-                            <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-600 text-sm">
+                            <div className="mx-6 mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 text-xs shrink-0">
                                 {error}
                             </div>
                         )}
 
-                        <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-black uppercase tracking-wide text-gray-600 dark:text-gray-400">Profiling</h3>
+                        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+                            {/* Two-column body */}
+                            <div className="flex flex-1 overflow-hidden divide-x divide-gray-100 dark:divide-white/10 min-h-0">
 
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Client Name</label>
-                                    <input
-                                        type="text"
-                                        name="clientName"
-                                        value={formData.clientName}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                        placeholder="John Doe"
-                                    />
+                                {/* ── LEFT COLUMN: Client ── */}
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4 min-w-0">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[#b1b1b1]">Client</p>
+
+                                    {/* Client Name */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">
+                                            Client Name <span className="text-[#F26389]">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="clientName"
+                                            value={formData.clientName}
+                                            onChange={handleInputChange}
+                                            placeholder="Rhuzell"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Contact Number */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">
+                                            Contact Number
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            name="clientContact"
+                                            value={formData.clientContact}
+                                            onChange={handleInputChange}
+                                            placeholder="+63 9XX XXX XXXX"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Email */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">
+                                            Email
+                                        </label>
+                                        <input
+                                            type="email"
+                                            name="clientEmail"
+                                            value={formData.clientEmail}
+                                            onChange={handleInputChange}
+                                            placeholder="client@example.com"
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                        />
+                                    </div>
+
+                                    {/* Booked Via */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">
+                                            Booked Via
+                                        </label>
+                                        <select
+                                            name="bookingSource"
+                                            value={formData.bookingSource}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                        >
+                                            {BOOKING_SOURCES.map(src => (
+                                                <option key={src} value={src}>{src}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Date – inline calendar */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">
+                                            Date <span className="text-[#F26389]">*</span>
+                                        </label>
+
+                                        <div className="border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden">
+                                            {/* Month / year header */}
+                                            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                                                <span className="text-sm font-bold text-[#2f3035] dark:text-white">
+                                                    {MONTH_LABELS[calViewMonth]} {calViewYear}
+                                                </span>
+                                                <div className="flex gap-0.5">
+                                                    <button type="button" onClick={handleCalPrev}
+                                                        className="p-1 text-[#F26389] hover:bg-[#F26389]/10 rounded transition-colors">
+                                                        <ChevronLeft size={16} />
+                                                    </button>
+                                                    <button type="button" onClick={handleCalNext}
+                                                        className="p-1 text-[#F26389] hover:bg-[#F26389]/10 rounded transition-colors">
+                                                        <ChevronRight size={16} />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Day-name row */}
+                                            <div className="grid grid-cols-7 px-3">
+                                                {DAY_NAMES.map(n => (
+                                                    <div key={n} className="text-center text-[10px] font-bold text-gray-400 py-1">{n}</div>
+                                                ))}
+                                            </div>
+
+                                            {/* Day grid */}
+                                            <div className="grid grid-cols-7 px-3 pb-3 gap-y-0.5">
+                                                {calCells.map((cell, idx) => {
+                                                    let cellY = calViewYear, cellM = calViewMonth;
+                                                    if (cell.type === 'prev') {
+                                                        if (cellM === 0) { cellY--; cellM = 11; } else cellM--;
+                                                    } else if (cell.type === 'next') {
+                                                        if (cellM === 11) { cellY++; cellM = 0; } else cellM++;
+                                                    }
+                                                    const isToday = cellY === todayY && cellM === todayM && cell.d === todayD;
+                                                    const isSelected = cellY === selectedY && cellM === selectedM && cell.d === selectedD;
+                                                    const isOther = cell.type !== 'cur';
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            type="button"
+                                                            onClick={() => handleCalDayClick(cell)}
+                                                            className={[
+                                                                'w-8 h-8 mx-auto flex items-center justify-center text-xs rounded-full transition-all',
+                                                                isSelected
+                                                                    ? 'bg-[#F26389] text-white font-bold'
+                                                                    : isToday
+                                                                        ? 'border-2 border-[#F26389] text-[#F26389] font-bold'
+                                                                        : isOther
+                                                                            ? 'text-gray-300 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5'
+                                                                            : 'text-[#2f3035] dark:text-white hover:bg-[#F26389]/10',
+                                                            ].join(' ')}
+                                                        >
+                                                            {cell.d}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Selected date label */}
+                                        <p className="mt-1.5 text-xs font-bold text-[#F26389]">{selectedDateLabel}</p>
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Contact Number</label>
-                                    <input
-                                        type="tel"
-                                        name="clientContact"
-                                        value={formData.clientContact}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                        placeholder="+63 9XX XXX XXXX"
-                                    />
-                                </div>
+                                {/* ── RIGHT COLUMN: Service & Schedule ── */}
+                                <div className="flex-1 overflow-y-auto p-6 space-y-4 min-w-0">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-[#b1b1b1]">Service &amp; Schedule</p>
 
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Client Email</label>
-                                    <input
-                                        type="email"
-                                        name="clientEmail"
-                                        value={formData.clientEmail}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                        placeholder="client@email.com"
-                                    />
-                                </div>
+                                    {/* Category */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">Category</label>
+                                        <select
+                                            name="categoryId"
+                                            value={formData.categoryId}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                        >
+                                            <option value="">Select category</option>
+                                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                        </select>
+                                    </div>
 
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Booked Via</label>
-                                    <select
-                                        name="bookingSource"
-                                        value={formData.bookingSource}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                    >
-                                        {BOOKING_SOURCES.map(source => (
-                                            <option key={source} value={source}>{source}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4">
-                                <h3 className="text-sm font-black uppercase tracking-wide text-gray-600 dark:text-gray-400">Service & Schedule</h3>
-
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Category</label>
-                                    <select
-                                        name="categoryId"
-                                        value={formData.categoryId}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                    >
-                                        <option value="">Select a category first</option>
-                                        {categories.map(category => (
-                                            <option key={category.id} value={category.id}>
-                                                {category.name}
+                                    {/* Service */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">Service</label>
+                                        <select
+                                            name="serviceId"
+                                            value={formData.serviceId}
+                                            onChange={handleInputChange}
+                                            disabled={!formData.categoryId}
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <option value="">
+                                                {formData.categoryId ? 'Select a service' : 'Select category first'}
                                             </option>
-                                        ))}
-                                    </select>
-                                </div>
+                                            {filteredServices.map(s => (
+                                                <option key={s.id} value={s.id}>{s.title}</option>
+                                            ))}
+                                        </select>
+                                        {selectedService && (
+                                            <p className="mt-1.5 text-[11px] font-bold text-[#F26389] uppercase tracking-wider">
+                                                {selectedService.subcategory || selectedService.category} &middot; {selectedService.duration} &middot; ₱{selectedService.basePrice?.toLocaleString()}
+                                            </p>
+                                        )}
+                                    </div>
 
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Service</label>
-                                    <select
-                                        name="serviceId"
-                                        value={formData.serviceId}
-                                        onChange={handleInputChange}
-                                        disabled={!formData.categoryId}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        <option value="">
-                                            {formData.categoryId ? 'Select a service' : 'Select category first'}
-                                        </option>
-                                        {filteredServices.map(service => (
-                                            <option key={service.id} value={service.id}>
-                                                {service.title} - ₱{service.basePrice?.toLocaleString()} ({service.duration})
-                                            </option>
-                                        ))}
-                                    </select>
-                                    {selectedService && (
-                                        <div className="mt-2 p-3 bg-[#F26389]/5 border border-[#F26389]/20 rounded-lg">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-[#F26389]">
-                                                {selectedService.subcategory || selectedService.category} • {selectedService.duration}
-                                            </p>
-                                            <p className="text-sm font-black text-[#2f3035] dark:text-white mt-1">
-                                                ₱{selectedService.basePrice?.toLocaleString()}
-                                            </p>
+                                    {/* Start Time */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">Start Time</label>
+                                        <div className="flex gap-2 items-center">
+                                            <select name="hour" value={formData.hour} onChange={handleInputChange}
+                                                className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors">
+                                                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                            <span className="text-gray-400 font-bold">:</span>
+                                            <select name="minute" value={formData.minute} onChange={handleInputChange}
+                                                className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors">
+                                                {MINUTE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    {/* End Time */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#b1b1b1]">End Time</label>
+                                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.useCustomEndTime}
+                                                    onChange={e => setFormData(prev => ({ ...prev, useCustomEndTime: e.target.checked }))}
+                                                    className="rounded accent-[#F26389]"
+                                                />
+                                                Override
+                                            </label>
+                                        </div>
+                                        <div className="flex gap-2 items-center">
+                                            <select name="endHour" value={formData.endHour} onChange={handleInputChange}
+                                                disabled={!formData.useCustomEndTime}
+                                                className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors disabled:opacity-60">
+                                                {HOUR_OPTIONS.map(h => <option key={h} value={h}>{h}</option>)}
+                                            </select>
+                                            <span className="text-gray-400 font-bold">:</span>
+                                            <select name="endMinute" value={formData.endMinute} onChange={handleInputChange}
+                                                disabled={!formData.useCustomEndTime}
+                                                className="flex-1 px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors disabled:opacity-60">
+                                                {MINUTE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                                            </select>
+                                        </div>
+                                        {formData.useCustomEndTime && (
+                                            <p className="mt-1 text-[11px] text-gray-400">Custom end time.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Staff */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">Staff</label>
+                                        <select name="staffId" value={formData.staffId} onChange={handleInputChange}
+                                            className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors">
+                                            <option value="">Select staff member</option>
+                                            {staff.map(m => (
+                                                <option key={m.id} value={m.id}>{m.name} ({m.role})</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Preset Add-ons */}
+                                    {selectedService?.addons && selectedService.addons.length > 0 && (
+                                        <div>
+                                            <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-2">Add-ons</label>
+                                            <div className="space-y-1.5">
+                                                {selectedService.addons.map(addon => (
+                                                    <label key={addon.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={formData.selectedAddons[addon.id] || false}
+                                                            onChange={() => handleAddonToggle(addon.id)}
+                                                            className="rounded accent-[#F26389]"
+                                                        />
+                                                        <span className="flex-1 text-[#2f3035] dark:text-white">{addon.name}</span>
+                                                        <span className="text-xs font-bold text-[#F26389]">+₱{addon.defaultPrice?.toLocaleString()}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
-                                </div>
 
-                                <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-bold uppercase">Date</label>
-                                        <button
-                                            type="button"
-                                            onClick={handleSetToday}
-                                            className="px-2 py-1 text-[11px] font-bold uppercase rounded-md border border-gray-300 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                                        >
-                                            Today
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <select
-                                            name="month"
-                                            value={formData.month}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {MONTH_OPTIONS.map(option => (
-                                                <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            name="day"
-                                            value={formData.day}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {DAY_OPTIONS.map(option => (
-                                                <option key={option} value={option}>{option}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            name="year"
-                                            value={formData.year}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {YEAR_OPTIONS.map(option => (
-                                                <option key={option} value={option}>{option}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Time</label>
-                                    <div className="flex gap-2">
-                                        <select
-                                            name="hour"
-                                            value={formData.hour}
-                                            onChange={handleInputChange}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {HOUR_OPTIONS.map(hour => (
-                                                <option key={hour} value={hour}>{hour}</option>
-                                            ))}
-                                        </select>
-                                        <span className="flex items-center text-gray-400">:</span>
-                                        <select
-                                            name="minute"
-                                            value={formData.minute}
-                                            onChange={handleInputChange}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {MINUTE_OPTIONS.map(minute => (
-                                                <option key={minute} value={minute}>{minute}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-sm font-bold uppercase">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.useCustomEndTime}
-                                            onChange={(event) => {
-                                                const enabled = event.target.checked;
-                                                setFormData((prev) => ({ ...prev, useCustomEndTime: enabled }));
-                                            }}
-                                            className="rounded accent-[#F26389]"
-                                        />
-                                        Override End Time
-                                    </label>
-
-                                    <div className="flex gap-2">
-                                        <select
-                                            name="endHour"
-                                            value={formData.endHour}
-                                            onChange={handleInputChange}
-                                            disabled={!formData.useCustomEndTime}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm disabled:opacity-60"
-                                        >
-                                            {HOUR_OPTIONS.map(hour => (
-                                                <option key={hour} value={hour}>{hour}</option>
-                                            ))}
-                                        </select>
-                                        <span className="flex items-center text-gray-400">:</span>
-                                        <select
-                                            name="endMinute"
-                                            value={formData.endMinute}
-                                            onChange={handleInputChange}
-                                            disabled={!formData.useCustomEndTime}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm disabled:opacity-60"
-                                        >
-                                            {MINUTE_OPTIONS.map(minute => (
-                                                <option key={minute} value={minute}>{minute}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                        {formData.useCustomEndTime
-                                            ? 'Custom end time enabled.'
-                                            : `End time auto-computed from service duration (${selectedService?.duration || '1 hour'}).`}
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Staff</label>
-                                    <select
-                                        name="staffId"
-                                        value={formData.staffId}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                    >
-                                        <option value="">Select staff member</option>
-                                        {staff.map(member => (
-                                            <option key={member.id} value={member.id}>
-                                                {member.name} ({member.role})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {selectedService?.addons && selectedService.addons.length > 0 && (
-                                    <div className="pt-2 pb-2 border-t border-gray-200 dark:border-white/10">
-                                        <label className="block text-sm font-bold uppercase mb-3">Pre-set Add-ons</label>
-                                        <div className="space-y-2 max-h-32 overflow-y-auto">
-                                            {selectedService.addons.map(addon => (
-                                                <div key={addon.id} className="flex items-center gap-3">
-                                                    <input
-                                                        type="checkbox"
-                                                        id={addon.id}
-                                                        checked={formData.selectedAddons[addon.id] || false}
-                                                        onChange={() => handleAddonToggle(addon.id)}
-                                                        className="rounded accent-[#F26389]"
-                                                    />
-                                                    <label htmlFor={addon.id} className="text-sm flex-1">
-                                                        {addon.name}
-                                                    </label>
-                                                    <span className="text-sm font-bold">+₱{addon.defaultPrice}</span>
-                                                </div>
-                                            ))}
+                                    {/* Custom Add-ons */}
+                                    <div>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-[#b1b1b1]">Custom Add-ons</label>
+                                            <button type="button" onClick={handleAddCustomAddon}
+                                                className="text-xs font-bold text-[#F26389] hover:underline tracking-wide">
+                                                + ADD
+                                            </button>
                                         </div>
-                                    </div>
-                                )}
-
-                                <div className="pt-2 pb-2 border-t border-gray-200 dark:border-white/10">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <label className="block text-sm font-bold uppercase">Custom Add-ons</label>
-                                        <button
-                                            type="button"
-                                            onClick={handleAddCustomAddon}
-                                            className="px-2 py-1 text-[11px] font-bold uppercase bg-[#F26389]/10 text-[#F26389] border border-[#F26389]/30 rounded-lg hover:bg-[#F26389]/20 transition-colors"
-                                        >
-                                            + Add
-                                        </button>
-                                    </div>
-
-                                    {customAddons.length > 0 ? (
-                                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                                            {customAddons.map((addon, index) => (
-                                                <div key={addon.id} className="flex gap-2 items-end">
-                                                    <div className="flex-1">
+                                        {customAddons.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {customAddons.map((addon, idx) => (
+                                                    <div key={addon.id} className="flex gap-2 items-center">
                                                         <input
                                                             type="text"
                                                             value={addon.name}
-                                                            onChange={(e) => handleCustomAddonChange(index, 'name', e.target.value)}
+                                                            onChange={e => handleCustomAddonChange(idx, 'name', e.target.value)}
                                                             placeholder="Add-on name"
-                                                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                                            className="flex-1 px-2 py-1.5 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
                                                         />
-                                                    </div>
-                                                    <div className="w-24">
                                                         <input
                                                             type="number"
                                                             value={addon.price}
-                                                            onChange={(e) => handleCustomAddonChange(index, 'price', e.target.value)}
-                                                            placeholder="Price"
-                                                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                                            onChange={e => handleCustomAddonChange(idx, 'price', e.target.value)}
+                                                            placeholder="0"
+                                                            className="w-20 px-2 py-1.5 text-sm border border-gray-200 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
                                                         />
+                                                        <button type="button" onClick={() => handleRemoveCustomAddon(idx)}
+                                                            className="text-red-400 hover:text-red-600 px-1 transition-colors">✕</button>
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRemoveCustomAddon(index)}
-                                                        className="px-2 py-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-xs text-[#F26389] italic">No custom add-ons yet</p>
+                                        )}
+                                    </div>
+
+                                    {/* Transportation Fee */}
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] mb-1.5">Transportation Fee</label>
+                                        <div className="flex items-center border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden bg-white dark:bg-[#0c0c0c] focus-within:border-[#F26389] transition-colors">
+                                            <span className="pl-3 pr-1 text-sm font-bold text-gray-400">₱</span>
+                                            <input
+                                                type="number"
+                                                value={transportationFee}
+                                                onChange={e => setTransportationFee(parseFloat(e.target.value) || 0)}
+                                                min="0"
+                                                className="flex-1 py-2 pr-3 text-sm bg-transparent focus:outline-none"
+                                            />
                                         </div>
-                                    ) : (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">No custom add-ons yet</p>
-                                    )}
+                                    </div>
+
+                                    {/* Total */}
+                                    <div className="pt-3 border-t border-gray-100 dark:border-white/10 flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-widest text-[#b1b1b1]">Total</span>
+                                        <span className="text-xl font-black text-[#F26389]">₱{calculateTotal().toLocaleString()}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="lg:col-span-2 space-y-4">
-                                {selectedService && (
-                                    <div className="pt-3 pb-3 border-t border-gray-200 dark:border-white/10">
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-bold uppercase text-sm">Total:</span>
-                                            <span className="text-lg font-black text-[#F26389]">₱{calculateTotal().toLocaleString()}</span>
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex gap-3 pt-4">
-                                    <button
-                                        type="button"
-                                        onClick={onClose}
-                                        className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg font-bold uppercase text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmitting}
-                                        className="flex-1 px-4 py-2 bg-[#F26389] text-white rounded-lg font-bold uppercase text-sm hover:bg-[#BF637C] disabled:opacity-50 transition-colors"
-                                    >
-                                        {isSubmitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Booking' : 'Create Booking')}
-                                    </button>
-                                </div>
+                            {/* Footer buttons */}
+                            <div className="flex border-t border-gray-100 dark:border-white/10 divide-x divide-gray-100 dark:divide-white/10 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={onClose}
+                                    className="flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={isSubmitting}
+                                    className="flex-1 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-white bg-[#F26389] hover:bg-[#d9527a] disabled:opacity-50 transition-colors"
+                                >
+                                    {isSubmitting
+                                        ? (isEditMode ? 'Updating...' : 'Creating...')
+                                        : (isEditMode ? 'Save Changes' : 'Create Booking')}
+                                </button>
                             </div>
                         </form>
                     </motion.div>

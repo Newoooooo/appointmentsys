@@ -12,7 +12,7 @@ export const CalendarTaskService = {
       description: `Pending edit for booking. Service: ${booking.serviceTitle || 'N/A'}. Client: ${booking.clientName || 'N/A'}.`,
       bookingId: booking.id,
       type: 'pending_edit',
-      status: 'pending',
+      status: 'To Do',
       priority: 'high',
       assignedTo: null,
       assignedToName: null,
