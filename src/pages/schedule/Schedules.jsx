@@ -264,7 +264,8 @@ const Schedules = () => {
         return appointments.filter((appointment) => {
             const isActive = ACTIVE_STATUSES.includes(appointment.status) ||
                 // also show bookings that pre-date the new status system (no status field)
-                (!appointment.status || appointment.status === 'confirmed');
+                // or were created with legacy 'Confirmed' / 'confirmed' status
+                (!appointment.status || appointment.status === 'confirmed' || appointment.status === 'Confirmed');
             if (!isActive) return false;
             const inCategory = selectedCategory === 'All' || appointment.category === selectedCategory;
             const inStartRange = !normalizedRange.start || appointment.fullDate >= formatLocalISODate(normalizedRange.start);

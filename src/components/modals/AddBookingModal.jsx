@@ -36,17 +36,14 @@ const parseLocalISO = (s) => {
     return Number.isNaN(d.getTime()) ? null : d;
 };
 
-// Sanitize addon rows: trim strings, default numerics to 0, drop empty rows
+// Sanitize addon rows: default numerics to 0, drop rows with no price
 const sanitizeAddons = (addons) =>
     addons
         .map((a) => ({
             ...a,
-            name: (a.name || '').trim(),
             price: Number(a.price) || 0,
-            minutes: Number(a.minutes) || 0,
-            qty: Math.max(1, Number(a.qty) || 1),
         }))
-        .filter((a) => a.name !== '' || a.price > 0 || a.minutes > 0);
+        .filter((a) => a.price > 0);
 
 export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = null, editingBooking = null }) => {
     const isEdit = Boolean(editingBooking);
@@ -72,6 +69,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
         useCustomEndTime: false,
         staffId: '',
         selectedAddons: {},
+        transpoFee: 0,
     });
     const [customAddons, setCustomAddons] = useState([]);
     const [overlapWarning, setOverlapWarning] = useState('');
@@ -120,6 +118,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                 useCustomEndTime: true,
                 staffId: editingBooking.staffId || '',
                 selectedAddons: (editingBooking.selectedAddons || []).reduce((acc, x) => ({ ...acc, [x.id]: true }), {}),
+                transpoFee: Number(editingBooking.transpoFee) || 0,
             });
             setCustomAddons(
                 (editingBooking.customAddons || []).map((a) => ({
@@ -151,6 +150,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                 useCustomEndTime: false,
                 staffId: '',
                 selectedAddons: {},
+                transpoFee: 0,
             }));
             setCustomAddons([]);
         }
@@ -173,17 +173,16 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
         setSelectedService(form.serviceId ? services.find((s) => s.id === form.serviceId) || null : null);
     }, [form.serviceId, services]);
 
-    // Auto-compute end time based on service duration + custom addon durations
+    // Auto-compute end time based on service duration
     useEffect(() => {
         if (form.useCustomEndTime) return;
         const baseDur = Number(selectedService?.durationMinutes) || 60;
-        const extraDur = sanitizeAddons(customAddons).reduce((s, a) => s + (a.minutes || 0) * (a.qty || 1), 0);
         const startMins = timeToMinutes(`${form.hour}:${form.minute}`);
         if (startMins === null) return;
-        const endTotal = Math.min(startMins + baseDur + extraDur, 22 * 60);
+        const endTotal = Math.min(startMins + baseDur, 22 * 60);
         const [eh, em] = minutesToTime(endTotal).split(':');
         setForm((prev) => ({ ...prev, endHour: eh, endMinute: em }));
-    }, [form.hour, form.minute, form.useCustomEndTime, selectedService, customAddons]);
+    }, [form.hour, form.minute, form.useCustomEndTime, selectedService]);
 
     // Overlap warning (non-blocking)
     useEffect(() => {
@@ -217,8 +216,9 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
             if (form.selectedAddons[a.id]) total += a.defaultPrice || 0;
         });
         sanitizeAddons(customAddons).forEach((a) => {
-            total += (a.price || 0) * (a.qty || 1);
+            total += (a.price || 0);
         });
+        total += Number(form.transpoFee) || 0;
         return total;
     };
 
@@ -258,15 +258,15 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                     };
                 });
 
-            // Build custom addons array
-            const customAddonsPayload = sanitizedCustom.map((a) => ({
+            // Build custom addons array (price-only rows)
+            const customAddonsPayload = sanitizedCustom.map((a, i) => ({
                 id: a.id,
-                name: a.name,
+                name: `Custom Add-on ${i + 1}`,
                 price: a.price,
-                minutes: a.minutes,
-                qty: a.qty,
-                subtotal: (a.price || 0) * (a.qty || 1),
-                durationSubtotal: (a.minutes || 0) * (a.qty || 1),
+                minutes: 0,
+                qty: 1,
+                subtotal: a.price || 0,
+                durationSubtotal: 0,
                 type: 'custom',
             }));
 
@@ -290,11 +290,12 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                 durationMinutes,
                 staffId: form.staffId,
                 staffName: staff.find((s) => s.id === form.staffId)?.name || '',
+                transpoFee: Number(form.transpoFee) || 0,
                 totalPrice: calcTotal(),
                 addons: allAddons,
                 selectedAddons: presetAddons,
                 customAddons: customAddonsPayload,
-                status: isEdit ? (editingBooking.status || 'Confirmed') : 'Confirmed',
+                status: isEdit ? (editingBooking.status || 'scheduled') : 'scheduled',
             };
 
             if (isEdit) {
@@ -308,7 +309,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                 clientName: '', clientContact: '', clientEmail: '',
                 bookingSource: 'Walk-in', categoryId: '', serviceId: '',
                 hour: '09', minute: '00', endHour: '10', endMinute: '00',
-                useCustomEndTime: false, staffId: '', selectedAddons: {},
+                useCustomEndTime: false, staffId: '', selectedAddons: {}, transpoFee: 0,
             });
             setCustomAddons([]);
             setSelectedDate(null);
@@ -563,7 +564,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                                         <label className="text-xs font-bold uppercase">Custom Add-ons</label>
                                         <button
                                             type="button"
-                                            onClick={() => setCustomAddons((p) => [...p, { id: `c-${Date.now()}`, name: '', price: 0, minutes: 0, qty: 1 }])}
+                                            onClick={() => setCustomAddons((p) => [...p, { id: `c-${Date.now()}`, price: 0 }])}
                                             className="text-[10px] font-black uppercase text-[#F26389] hover:underline"
                                         >
                                             + Add
@@ -574,49 +575,46 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                                     )}
                                     <div className="space-y-2">
                                         {customAddons.map((a, i) => (
-                                            <div key={a.id} className="grid grid-cols-[1fr_64px_56px_32px_24px] gap-1 items-center">
-                                                <input
-                                                    value={a.name}
-                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
-                                                    placeholder="Name"
-                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
-                                                />
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={a.price}
-                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, price: Number(e.target.value) || 0 } : x))}
-                                                    placeholder="₱"
-                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
-                                                />
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    value={a.minutes}
-                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, minutes: Number(e.target.value) || 0 } : x))}
-                                                    placeholder="min"
-                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
-                                                />
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={a.qty}
-                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, qty: Math.max(1, Number(e.target.value) || 1) } : x))}
-                                                    placeholder="qty"
-                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
-                                                />
+                                            <div key={a.id} className="flex items-center gap-2">
+                                                <span className="text-xs text-[#b1b1b1] w-24 shrink-0">Add-on {i + 1}</span>
+                                                <div className="relative flex-1">
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#b1b1b1]">₱</span>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        value={a.price}
+                                                        onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, price: Number(e.target.value) || 0 } : x))}
+                                                        placeholder="0"
+                                                        className="w-full pl-6 pr-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
+                                                    />
+                                                </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => setCustomAddons((p) => p.filter((_, j) => j !== i))}
-                                                    className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded p-0.5 text-xs"
+                                                    className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded p-0.5 text-xs shrink-0"
                                                 >
                                                     ✕
                                                 </button>
                                             </div>
                                         ))}
-                                        {customAddons.length > 0 && (
-                                            <p className="text-[10px] text-[#b1b1b1]">Columns: Name · Price (₱) · Duration (min) · Qty</p>
-                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Transportation Fee */}
+                                <div className="border-t border-[#f4f2f4] dark:border-white/10 pt-3">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <label className="text-xs font-bold uppercase shrink-0">Transportation Fee</label>
+                                        <div className="relative flex-1 max-w-[160px]">
+                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-[#b1b1b1]">₱</span>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={form.transpoFee}
+                                                onChange={(e) => set('transpoFee', Number(e.target.value) || 0)}
+                                                placeholder="0"
+                                                className="w-full pl-6 pr-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
 
