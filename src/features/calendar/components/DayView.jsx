@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import clsx from 'clsx';
 import { formatLocalISO, formatFullDate } from '../utils/dateMath.js';
-import { timeToMinutes, formatTimeLabel } from '../utils/slotGenerator.js';
+import { timeToMinutes } from '../utils/slotGenerator.js';
 import { getCategoryColor, hexToRgba } from '../config/palette.js';
 import { STATUS_LABELS } from '../config/statuses.js';
 

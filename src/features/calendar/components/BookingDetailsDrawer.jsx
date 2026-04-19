@@ -143,23 +143,12 @@ const BookingDetailsDrawer = ({
                       </button>
                     )}
 
-                    {booking.status !== 'rescheduled' && (
-                      <button
-                        onClick={() => onReschedule?.(booking)}
-                        className="w-full px-4 py-2.5 bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 rounded-xl font-bold uppercase text-xs hover:bg-purple-500/20 transition-colors"
-                      >
-                        Reschedule
-                      </button>
-                    )}
-
-                    {booking.status === 'rescheduled' && (
-                      <button
-                        onClick={() => onReschedule?.(booking)}
-                        className="w-full px-4 py-2.5 bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 rounded-xl font-bold uppercase text-xs hover:bg-purple-500/20 transition-colors"
-                      >
-                        Reschedule Again
-                      </button>
-                    )}
+                    <button
+                      onClick={() => onReschedule?.(booking)}
+                      className="w-full px-4 py-2.5 bg-purple-500/10 border border-purple-500/30 text-purple-600 dark:text-purple-400 rounded-xl font-bold uppercase text-xs hover:bg-purple-500/20 transition-colors"
+                    >
+                      {booking.status === 'rescheduled' ? 'Reschedule Again' : 'Reschedule'}
+                    </button>
 
                     {booking.status === 'scheduled' && (
                       <button

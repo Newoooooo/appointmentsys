@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import clsx from 'clsx';
-import { getMonthGrid, formatLocalISO, isToday, isSameDay } from '../utils/dateMath.js';
+import { getMonthGrid, formatLocalISO, parseLocalISO, isToday, isSameDay } from '../utils/dateMath.js';
 import { ACTIVE_STATUSES } from '../config/statuses.js';
 import { getCategoryColor, hexToRgba } from '../config/palette.js';
 

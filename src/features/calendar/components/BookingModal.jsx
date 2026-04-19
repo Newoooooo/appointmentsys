@@ -3,7 +3,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/style.css';
-import clsx from 'clsx';
 import { ServiceService, StaffService, CategoryService } from '../../../api/services.js';
 import { BOOKING_SOURCES } from '../config/constants.js';
 import { getOverlapWarning } from '../utils/overlapWarning.js';
@@ -337,7 +336,7 @@ const BookingModal = ({ isOpen, onClose, onSave, prefillDate, prefillTime, editi
                   type="number"
                   min="15"
                   step="15"
-                  value={form.durationOverride != null && form.durationOverride !== '' ? form.durationOverride : (selectedService?.durationMinutes ?? '')}
+                  value={form.durationOverride !== '' ? form.durationOverride : (selectedService?.durationMinutes ?? '')}
                   onChange={(e) => { set('durationOverride', e.target.value); set('useCustomEndTime', false); }}
                   placeholder={selectedService ? String(selectedService.durationMinutes) : '60'}
                   className="w-full px-3 py-2 border border-[#e6e4e6] dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] text-sm"
