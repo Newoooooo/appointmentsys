@@ -1,11 +1,27 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Chrome, ArrowRight, AlertCircle } from 'lucide-react';
+import { Chrome, ArrowRight, AlertCircle, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const AuthPage = () => {
-    const { signInWithGoogle, authError, setAuthError, loading } = useAuth();
+    const { signInWithGoogle, signInWithEmailPassword, authError, setAuthError, loading } = useAuth();
     const [isSigningIn, setIsSigningIn] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+
+    const handleEmailSignIn = async (e) => {
+        e.preventDefault();
+        setAuthError('');
+        setIsSigningIn(true);
+        try {
+            await signInWithEmailPassword(email, password);
+        } catch {
+            // authError is set inside signInWithEmailPassword
+        } finally {
+            setIsSigningIn(false);
+        }
+    };
 
     const handleGoogleSignIn = async () => {
         setAuthError('');
@@ -74,7 +90,7 @@ const AuthPage = () => {
                         <h1 className="text-4xl font-black text-[#2f3035] dark:text-[#fdfcfc] tracking-tight">
                             Welcome back
                         </h1>
-                        <p className="text-sm text-[#b1b1b1]">Sign in with your authorised Google account to continue.</p>
+                        <p className="text-sm text-[#b1b1b1]">Sign in to your account to continue.</p>
                     </div>
 
                     {authError && (
@@ -87,6 +103,62 @@ const AuthPage = () => {
                             <p className="text-sm font-medium">{authError}</p>
                         </motion.div>
                     )}
+
+                    {/* Email / Password form */}
+                    <form onSubmit={handleEmailSignIn} className="space-y-4">
+                        <div className="relative">
+                            <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#b1b1b1]" />
+                            <input
+                                type="email"
+                                placeholder="Email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                disabled={isSigningIn || loading}
+                                className="w-full pl-10 pr-4 py-4 border-2 border-[#e6e4e6] dark:border-[#3f3835] rounded-2xl text-sm font-medium text-[#2f3035] dark:text-[#fdfcfc] bg-transparent placeholder-[#b1b1b1] focus:outline-none focus:border-[#F26389] disabled:opacity-50 transition-colors"
+                            />
+                        </div>
+                        <div className="relative">
+                            <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#b1b1b1]" />
+                            <input
+                                type={showPassword ? 'text' : 'password'}
+                                placeholder="Password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                disabled={isSigningIn || loading}
+                                className="w-full pl-10 pr-12 py-4 border-2 border-[#e6e4e6] dark:border-[#3f3835] rounded-2xl text-sm font-medium text-[#2f3035] dark:text-[#fdfcfc] bg-transparent placeholder-[#b1b1b1] focus:outline-none focus:border-[#F26389] disabled:opacity-50 transition-colors"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword((v) => !v)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-[#b1b1b1] hover:text-[#F26389] transition-colors"
+                            >
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isSigningIn || loading}
+                            className="w-full flex items-center justify-center gap-3 px-6 py-5 bg-[#F26389] hover:bg-[#e0547a] disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl font-black text-sm uppercase tracking-widest text-white transition-all"
+                        >
+                            {isSigningIn ? (
+                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <span>Sign In</span>
+                                    <ArrowRight size={16} />
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    {/* Divider */}
+                    <div className="flex items-center gap-4">
+                        <div className="flex-1 h-[1px] bg-[#e6e4e6] dark:bg-[#3f3835]" />
+                        <span className="text-[10px] font-black text-[#b1b1b1] uppercase tracking-widest">or</span>
+                        <div className="flex-1 h-[1px] bg-[#e6e4e6] dark:bg-[#3f3835]" />
+                    </div>
 
                     <button
                         onClick={handleGoogleSignIn}

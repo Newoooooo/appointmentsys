@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import {
     onAuthStateChanged,
     signInWithPopup,
+    signInWithEmailAndPassword,
     GoogleAuthProvider,
     signOut as firebaseSignOut
 } from 'firebase/auth';
@@ -70,6 +71,21 @@ export const AuthProvider = ({ children }) => {
         return unsubscribe;
     }, []);
 
+    const signInWithEmailPassword = async (email, password) => {
+        setAuthError('');
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            // onAuthStateChanged will handle the rest
+        } catch (err) {
+            const msg =
+                err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential'
+                    ? 'Invalid email or password. Please try again.'
+                    : err.message || 'Sign-in failed. Please try again.';
+            setAuthError(msg);
+            throw err;
+        }
+    };
+
     const signInWithGoogle = async () => {
         setAuthError('');
         const provider = new GoogleAuthProvider();
@@ -97,6 +113,7 @@ export const AuthProvider = ({ children }) => {
         authError,
         setAuthError,
         signInWithGoogle,
+        signInWithEmailPassword,
         signOut,
         isAuthenticated: !!user && !!userProfile,
         isAdmin: userProfile?.role === 'admin',
