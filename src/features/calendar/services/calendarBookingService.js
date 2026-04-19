@@ -74,6 +74,7 @@ export const CalendarBookingService = {
     return updateDocument(COL, id, {
       status: BOOKING_STATUSES.CANCELLED,
       cancellationReason: reason,
+      cancelledAt: new Date().toISOString(),
       auditLog,
     });
   },

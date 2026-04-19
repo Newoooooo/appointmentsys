@@ -260,14 +260,12 @@ const BookingDetailsDrawer = ({
                                             {activeBooking.status === 'rescheduled' ? 'Reschedule Again' : 'Reschedule'}
                                         </button>
 
-                                        {activeBooking.status === 'scheduled' && (
-                                            <button
-                                                onClick={() => onEdit?.(activeBooking)}
-                                                className="w-full px-4 py-2.5 bg-[#f4f2f4] dark:bg-white/5 border border-[#e6e4e6] dark:border-white/10 rounded-xl font-bold uppercase text-xs hover:bg-[#e6e4e6] dark:hover:bg-white/10 transition-colors"
-                                            >
-                                                Edit
-                                            </button>
-                                        )}
+                                        <button
+                                            onClick={() => onEdit?.(activeBooking)}
+                                            className="w-full px-4 py-2.5 bg-[#f4f2f4] dark:bg-white/5 border border-[#e6e4e6] dark:border-white/10 rounded-xl font-bold uppercase text-xs hover:bg-[#e6e4e6] dark:hover:bg-white/10 transition-colors"
+                                        >
+                                            Edit
+                                        </button>
 
                                         <button
                                             onClick={() => onCancel?.(activeBooking)}

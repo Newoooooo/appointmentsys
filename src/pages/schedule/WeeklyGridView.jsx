@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -23,7 +24,7 @@ const toAmPm = (time24) => {
     return `${h}${minute === '00' ? '' : `:${minute}`} ${ampm}`;
 };
 
-const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, getCategoryColor, onSlotClick, onAppointmentClick }) => {
+const WeeklyGridView = ({ activeDay, fullWeek = [], hours = [], appointments = [], getCategoryColor, onSlotClick, onAppointmentClick }) => {
     const [nowMinutes, setNowMinutes] = useState(() => {
         const n = new Date();
         return n.getHours() * 60 + n.getMinutes();
@@ -205,4 +206,30 @@ const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, getCategoryC
     );
 };
 
-export default WeeklyGridView;
+class WeekViewErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+    }
+    static getDerivedStateFromError() {
+        return { hasError: true };
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="flex-1 flex items-center justify-center border border-[#f4f2f4] dark:border-white/10 rounded-3xl bg-white dark:bg-[#0c0c0c] text-[#b1b1b1] text-sm font-bold">
+                    Week view unavailable — please refresh.
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
+const WeeklyGridViewWithBoundary = (props) => (
+    <WeekViewErrorBoundary>
+        <WeeklyGridView {...props} />
+    </WeekViewErrorBoundary>
+);
+
+export default WeeklyGridViewWithBoundary;

@@ -386,7 +386,10 @@ export const BookingService = {
             { field: 'staffId', operator: '==', value: staffId }
         ]);
 
-        return (existingBookings || []).some((booking) => {
+        return (existingBookings || []).filter((b) => {
+            const s = (b.status || '').toLowerCase();
+            return s !== 'cancelled' && s !== 'completed';
+        }).some((booking) => {
             if (bookingId && booking.id === bookingId) return false;
 
             const bookingStart = toMinutes(booking.startTime || booking.time);
