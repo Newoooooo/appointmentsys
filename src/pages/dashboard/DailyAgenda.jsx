@@ -16,7 +16,7 @@ export const DailyAgenda = ({ schedule }) => {
 
                 <Link
                     to={`/bookings?date=${today}&view=day`}
-                    className="group flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-[#f87941] hover:opacity-80 transition-all"
+                    className="group flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-[#F26389] hover:opacity-80 transition-all"
                 >
                     View All
                     <ChevronRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
@@ -26,12 +26,12 @@ export const DailyAgenda = ({ schedule }) => {
             <div className="space-y-2">
                 {schedule.map((item, i) => (
                     <Card key={i}
-                          className="p-0 rounded-xl border-[#f4f2f4] dark:border-white/10 group hover:border-[#f87941] flex items-stretch overflow-hidden bg-white dark:bg-[#111]"
+                          className="p-0 rounded-xl border-[#f4f2f4] dark:border-white/10 group hover:border-[#F26389] flex items-stretch overflow-hidden bg-white dark:bg-[#111]"
                           hover={true}
                     >
                         {/* TIME GUTTER - Ultra clean */}
-                        <div className="w-14 sm:w-16 bg-[#fdfcfc] dark:bg-[#0c0c0c] border-r border-[#f4f2f4] dark:border-white/10 flex flex-col items-center justify-center shrink-0 transition-colors group-hover:bg-[#f87941]/5">
-                            <span className="text-base sm:text-lg font-black tracking-tighter text-[#2f3035] dark:text-white group-hover:text-[#f87941] transition-colors leading-none">
+                        <div className="w-14 sm:w-16 bg-[#fdfcfc] dark:bg-[#0c0c0c] border-r border-[#f4f2f4] dark:border-white/10 flex flex-col items-center justify-center shrink-0 transition-colors group-hover:bg-[#F26389]/5">
+                            <span className="text-base sm:text-lg font-black tracking-tighter text-[#2f3035] dark:text-white group-hover:text-[#F26389] transition-colors leading-none">
                                 {item.time.split(':')[0]}
                             </span>
                             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest mt-1">
@@ -43,7 +43,7 @@ export const DailyAgenda = ({ schedule }) => {
                         <div className="flex-1 p-3.5 sm:p-4 flex items-center justify-between min-w-0 gap-3">
                             <div className="flex-1 min-w-0">
                                 {/* Client Name */}
-                                <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-tight text-[#2f3035] dark:text-white group-hover:text-[#f87941] transition-colors truncate mb-0.5">
+                                <h4 className="text-[11px] sm:text-xs font-black uppercase tracking-tight text-[#2f3035] dark:text-white group-hover:text-[#F26389] transition-colors truncate mb-0.5">
                                     {item.client}
                                 </h4>
 
@@ -73,7 +73,7 @@ export const DailyAgenda = ({ schedule }) => {
 
                                 <Link
                                     to={`/bookings/${item.id}`}
-                                    className="p-1.5 text-gray-200 dark:text-gray-700 group-hover:text-[#f87941] transition-all transform group-hover:translate-x-0.5"
+                                    className="p-1.5 text-gray-200 dark:text-gray-700 group-hover:text-[#F26389] transition-all transform group-hover:translate-x-0.5"
                                 >
                                     <ArrowUpRight size={16} />
                                 </Link>

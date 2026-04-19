@@ -1,2 +1,165 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Light Theme (Default) */
+:root {
+  /* Backgrounds */
+  --color-primary: #ffffff;
+  --color-secondary: #f8f9fa;
+  --color-tertiary: #f4f2f4;
+  --color-surface: #ffffff;
+  --color-overlay: rgba(0, 0, 0, 0.5);
+
+  /* Text */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #2f3035;
+  --color-text-tertiary: #4b5563;
+  --color-text-inverse: #fdfcfc;
+
+  /* Borders */
+  --color-border: #e5e7eb;
+  --color-border-light: #f3f4f6;
+  --color-border-dark: #d1d5db;
+
+  /* Interactive */
+  --color-hover: #f3f4f6;
+  --color-active: #e5e7eb;
+  --color-disabled: #9ca3af;
+
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  color-scheme: light;
+}
+
+/* Dark Theme */
+.dark {
+  /* Backgrounds */
+  --color-primary: #0a0a0a;
+  --color-secondary: #141414;
+  --color-tertiary: #1a1a1a;
+  --color-surface: #111111;
+  --color-overlay: rgba(0, 0, 0, 0.7);
+
+  /* Text */
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #e6e4e6;
+  --color-text-tertiary: #a1a1aa;
+  --color-text-inverse: #1a1a1a;
+
+  /* Borders */
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-border-light: rgba(255, 255, 255, 0.05);
+  --color-border-dark: rgba(255, 255, 255, 0.2);
+
+  /* Interactive */
+  --color-hover: #1f1f1f;
+  --color-active: #252525;
+  --color-disabled: #52525b;
+
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+/* Global Styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--color-primary);
+  color: var(--color-text-primary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-dark);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-disabled);
+}
+
+/* Improve contrast for light theme gray utilities across the app */
+html:not(.dark) .text-gray-100 {
+  color: #6b7280;
+}
+
+html:not(.dark) .text-gray-200 {
+  color: #6b7280;
+}
+
+html:not(.dark) .text-gray-300 {
+  color: #4b5563;
+}
+
+html:not(.dark) .text-gray-400 {
+  color: #374151;
+}
+
+html:not(.dark) .text-gray-500 {
+  color: #4b5563;
+}
+
+html:not(.dark) .placeholder-gray-300::placeholder {
+  color: #6b7280;
+}
+
+html:not(.dark) .placeholder-gray-400::placeholder {
+  color: #4b5563;
+}
+
+html:not(.dark) .placeholder-gray-500::placeholder {
+  color: #4b5563;
+}
+
+html:not(.dark) .border-gray-100 {
+  border-color: #e5e7eb;
+}
+
+html:not(.dark) .border-gray-200 {
+  border-color: #d1d5db;
+}
+
+html:not(.dark) .text-\[\#9ca3af\] {
+  color: #4b5563;
+}
+
+html:not(.dark) .text-\[\#b1b1b1\] {
+  color: #6b7280;
+}
 

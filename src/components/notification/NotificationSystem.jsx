@@ -39,7 +39,7 @@ const NotificationSystem = () => {
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
                                 exit={{ scale: 0 }}
-                                className="absolute top-2.5 right-2.5 w-2 h-2 bg-[#f87941] rounded-full border-2 border-white dark:border-[#141414]"
+                                className="absolute top-2.5 right-2.5 w-2 h-2 bg-[#F26389] rounded-full border-2 border-white dark:border-[#141414]"
                             />
                         )}
                     </AnimatePresence>
@@ -56,7 +56,7 @@ const NotificationSystem = () => {
                                 initial={{ opacity: 0, x: -10 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 10 }}
-                                className="px-2 py-0.5 bg-[#f87941]/10 text-[#f87941] text-[10px] font-black rounded-full uppercase tracking-wider"
+                                className="px-2 py-0.5 bg-[#F26389]/10 text-[#F26389] text-[10px] font-black rounded-full uppercase tracking-wider"
                             >
                                 {notifications.filter(n => n.unread).length} New
                             </motion.span>
@@ -97,7 +97,7 @@ const NotificationSystem = () => {
                 <button
                     onClick={markAllRead}
                     disabled={!hasUnread}
-                    className="w-full py-3 text-[11px] font-black uppercase tracking-[0.2em] text-[#f87941] disabled:text-slate-400 hover:bg-[#f87941] hover:text-white dark:hover:text-white transition-all rounded-xl border border-dashed border-[#f87941]/30 disabled:border-slate-200 flex items-center justify-center gap-2"
+                    className="w-full py-3 text-[11px] font-black uppercase tracking-[0.2em] text-[#F26389] disabled:text-slate-400 hover:bg-[#F26389] hover:text-white dark:hover:text-white transition-all rounded-xl border border-dashed border-[#F26389]/30 disabled:border-slate-200 flex items-center justify-center gap-2"
                 >
                     Mark All as Read
                 </button>
@@ -117,7 +117,7 @@ const NotificationItem = ({ title, body, time, unread, onRemove }) => {
         >
             {/* Status Indicator */}
             <div className="shrink-0">
-                <div className={`w-2 h-2 rounded-full transition-all duration-500 ${unread ? 'bg-[#f87941] shadow-[0_0_10px_rgba(248,121,65,0.4)] scale-110' : 'bg-slate-200 dark:bg-slate-800 scale-100'}`} />
+                <div className={`w-2 h-2 rounded-full transition-all duration-500 ${unread ? 'bg-[#F26389] shadow-[0_0_10px_rgba(248,121,65,0.4)] scale-110' : 'bg-slate-200 dark:bg-slate-800 scale-100'}`} />
             </div>
 
             {/* Content Container */}

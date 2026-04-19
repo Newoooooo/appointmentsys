@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed": "node scripts/seedFirestore.js",
+    "seed:studio": "node scripts/seedStudioPackages.js"
   },
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.20",
@@ -15,6 +17,7 @@
     "@tailwindcss/vite": "^4.2.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "firebase": "^12.10.0",
     "framer-motion": "^12.34.3",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",

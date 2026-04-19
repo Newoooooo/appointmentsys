@@ -31,7 +31,7 @@ const SidebarLink = ({ to, icon: Icon, label }) => (
                 {isActive && (
                     <motion.div
                         layoutId="activeNav"
-                        className="absolute inset-0 bg-[#f87941] rounded-2xl shadow-lg shadow-[#f87941]/20 z-0"
+                        className="absolute inset-0 bg-[#F26389] rounded-2xl shadow-lg shadow-[#F26389]/20 z-0"
                         transition={{ type: "spring", stiffness: 300, damping: 30 }}
                     />
                 )}
@@ -53,7 +53,7 @@ export const Sidebar = ({ isOpen }) => (
             <div className="flex items-center gap-3 mb-10 px-2">
                 <motion.div
                     whileHover={{ rotate: -10, scale: 1.1 }}
-                    className="w-10 h-10 bg-[#f87941] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg"
+                    className="w-10 h-10 bg-[#F26389] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg"
                 >
                     B
                 </motion.div>

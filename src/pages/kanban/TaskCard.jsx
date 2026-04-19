@@ -10,7 +10,7 @@ export const TaskCard = ({ task }) => {
     return (
         <Card
             whileTap={{ scale: 0.97 }}
-            className="bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl p-4 space-y-4 group shadow-sm hover:border-[#f87941]/30 transition-all duration-300"
+            className="bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl p-4 space-y-4 group shadow-sm hover:border-[#F26389]/30 transition-all duration-300"
         >
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -18,15 +18,15 @@ export const TaskCard = ({ task }) => {
                     <span className={clsx(
                         "text-[7px] md:text-[8px] font-black px-2 py-0.5 rounded-sm uppercase tracking-[0.15em] border transition-colors",
                         isHigh
-                            ? "text-[#f87941] bg-[#f87941]/10 border-[#f87941]/20"
+                            ? "text-[#F26389] bg-[#F26389]/10 border-[#F26389]/20"
                             : "text-[#b1b1b1] bg-[#f4f2f4] dark:bg-white/5 border-transparent"
                     )}>
                         {task.tag}
                     </span>
 
                     {isHigh && (
-                        <div className="flex items-center gap-1 text-[7px] font-black text-[#f87941] uppercase tracking-widest opacity-60">
-                            <div className="w-1 h-1 rounded-full bg-[#f87941] animate-pulse" />
+                        <div className="flex items-center gap-1 text-[7px] font-black text-[#F26389] uppercase tracking-widest opacity-60">
+                            <div className="w-1 h-1 rounded-full bg-[#F26389] animate-pulse" />
                             Priority
                         </div>
                     )}
@@ -35,7 +35,7 @@ export const TaskCard = ({ task }) => {
             </div>
 
             <div className="space-y-1">
-                <h3 className="text-[11px] md:text-xs font-black uppercase tracking-tight leading-tight group-hover:text-[#f87941] transition-colors duration-300">
+                <h3 className="text-[11px] md:text-xs font-black uppercase tracking-tight leading-tight group-hover:text-[#F26389] transition-colors duration-300">
                     {task.title}
                 </h3>
             </div>
@@ -43,7 +43,7 @@ export const TaskCard = ({ task }) => {
             <div className="flex items-center justify-between pt-3 border-t border-[#f4f2f4] dark:border-white/5 mt-1">
                 <div className="flex items-center gap-3">
                     <p className="text-[8px] font-bold text-[#b1b1b1] uppercase flex items-center gap-1.5 tracking-wider">
-                        <Clock size={10} className="text-[#f87941]/40" />
+                        <Clock size={10} className="text-[#F26389]/40" />
                         {task.time}
                     </p>
                 </div>
@@ -55,7 +55,7 @@ export const TaskCard = ({ task }) => {
                     </span>
                     <div className={clsx(
                         "w-1 h-1 rounded-full",
-                        isHigh ? "bg-[#f87941]" : "bg-[#b1b1b1]/40"
+                        isHigh ? "bg-[#F26389]" : "bg-[#b1b1b1]/40"
                     )} />
                 </div>
             </div>

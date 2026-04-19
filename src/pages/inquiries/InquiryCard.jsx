@@ -20,7 +20,7 @@ export const InquiryCard = ({ inq, isActive, onClick }) => (
         className={clsx(
             "p-4 rounded-2xl border transition-all cursor-pointer group relative overflow-hidden",
             isActive
-                ? "bg-white dark:bg-[#111] border-[#f87941] shadow-md shadow-[#f87941]/5"
+                ? "bg-white dark:bg-[#111] border-[#F26389] shadow-md shadow-[#F26389]/5"
                 : "bg-transparent border-transparent hover:border-[#f4f2f4] dark:hover:border-white/10"
         )}
     >
@@ -33,7 +33,7 @@ export const InquiryCard = ({ inq, isActive, onClick }) => (
         </div>
         <h3 className={clsx(
             "text-xs font-black uppercase tracking-tight",
-            isActive ? "text-[#f87941]" : "text-[#2f3035] dark:text-[#fdfcfc]"
+            isActive ? "text-[#F26389]" : "text-[#2f3035] dark:text-[#fdfcfc]"
         )}>{inq.name}</h3>
         <p className="text-[10px] text-[#b1b1b1] line-clamp-1 mt-1 font-medium italic opacity-70">"{inq.message}"</p>
     </motion.div>

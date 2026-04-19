@@ -1,6 +1,7 @@
 import React, {lazy, Suspense} from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AppLayout from './layouts/AppLayout.jsx';
+import { useInitializeCategories } from './hooks/useInitializeCategories.js';
 
 const LandingPage = lazy(() => import('./pages/Landing.jsx'));
 const AuthPage = lazy(() => import('./pages/AuthPage.jsx'));
@@ -17,6 +18,8 @@ const Settings = lazy(() => import('./pages/Settings.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 const App = () => {
+    // Initialize categories on app load
+    useInitializeCategories();
 
     return (
         <BrowserRouter>

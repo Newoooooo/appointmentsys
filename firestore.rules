@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default rule - OPEN ACCESS FOR DEVELOPMENT
+    // ⚠️ WARNING: These rules allow anyone to read/write your database
+    // This is suitable ONLY for development and testing
+    // MUST be restricted before production deployment
+    
+    match /{document=**} {
+      allow read, write: if true;
+    }
+    
+    // === PRODUCTION-READY RULES (commented out - enable when auth is implemented) ===
+    
+    // Services - Public read, authenticated write
+    // match /services/{serviceId} {
+    //   allow read: if true; // Anyone can view services
+    //   allow write: if request.auth != null && request.auth.token.role == 'admin';
+    // }
+    
+    // Bookings - Authenticated users only
+    // match /bookings/{bookingId} {
+    //   allow read: if request.auth != null;
+    //   allow create: if request.auth != null;
+    //   allow update, delete: if request.auth != null && 
+    //     (request.auth.token.role in ['admin', 'editor']);
+    // }
+    
+    // Staff - Authenticated users, admin can write
+    // match /staff/{staffId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if request.auth != null && request.auth.token.role == 'admin';
+    // }
+    
+    // Customers - Authenticated users only
+    // match /customers/{customerId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if request.auth != null && 
+    //     (request.auth.token.role in ['admin', 'editor']);
+    // }
+    
+    // Inquiries - Anyone can create, staff can read/update
+    // match /inquiries/{inquiryId} {
+    //   allow read, update: if request.auth != null;
+    //   allow create: if true; // Public can submit inquiries
+    //   allow delete: if request.auth != null && request.auth.token.role == 'admin';
+    // }
+    
+    // Tasks - Authenticated users only
+    // match /tasks/{taskId} {
+    //   allow read, write: if request.auth != null;
+    // }
+    
+    // History - Read only for authenticated users, system writes
+    // match /history/{historyId} {
+    //   allow read: if request.auth != null;
+    //   allow write: if request.auth != null && request.auth.token.role == 'admin';
+    // }
+  }
+}

@@ -13,11 +13,11 @@ export const DashboardStat = ({ stats }) => (
         {stats.map((stat, i) => (
             <Card
                 key={i}
-                className="p-8 rounded-xl border-[#f4f2f4] dark:border-white/10 group hover:border-[#f87941]"
+                className="p-8 rounded-xl border-[#f4f2f4] dark:border-white/10 group hover:border-[#F26389]"
                 hover={true}
             >
                 <div className="flex justify-between items-start mb-4">
-                    <div className="p-2 bg-[#fdfcfc] dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-lg text-[#f87941] group-hover:scale-110 transition-transform">
+                    <div className="p-2 bg-[#fdfcfc] dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-lg text-[#F26389] group-hover:scale-110 transition-transform">
                         <stat.icon size={14} />
                     </div>
 
@@ -31,7 +31,7 @@ export const DashboardStat = ({ stats }) => (
                     </span>
                 </div>
 
-                <h3 className="text-2xl font-black tracking-tighter transition-colors group-hover:text-[#f87941]">
+                <h3 className="text-2xl font-black tracking-tighter transition-colors group-hover:text-[#F26389]">
                     {stat.value}
                 </h3>
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-[0.2em] mt-2">

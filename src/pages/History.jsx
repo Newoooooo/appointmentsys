@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Search, Filter, Download, ArrowUpRight, Clock,
@@ -6,16 +6,21 @@ import {
     CheckCircle2, AlertCircle, FileText
 } from 'lucide-react';
 import clsx from 'clsx';
-
-// --- DATA MOCK ---
-const historyData = [
-    { id: 'BK-9021', customer: 'Oliver Twist', service: 'Deep Tissue', staff: 'Jordan S.', amount: '$120', status: 'Completed', date: 'MAY 12, 2026', time: '14:30' },
-    { id: 'BK-9022', customer: 'Mila Kunis', service: 'Signature Facial', staff: 'Elena R.', amount: '$85', status: 'Refunded', date: 'MAY 12, 2026', time: '11:00' },
-    { id: 'BK-9023', customer: 'Arthur Dent', service: 'Hot Stone', staff: 'Jordan S.', amount: '$150', status: 'Completed', date: 'MAY 11, 2026', time: '09:15' },
-    { id: 'BK-9024', customer: 'Sarah Connor', service: 'Tech Support', staff: 'Alex P.', amount: '$200', status: 'Completed', date: 'MAY 11, 2026', time: '08:00' },
-];
+import { HistoryService } from '../api/services.js';
 
 const HistoryView = () => {
+    const [historyData, setHistoryData] = useState([]);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+    
+    useEffect(() => {
+        HistoryService.getHistory().then(data => {
+            setHistoryData(data);
+            setIsLoadingHistory(false);
+        }).catch(error => {
+            console.error('Error loading history:', error);
+            setIsLoadingHistory(false);
+        });
+    }, []);
     return (
         <div className="h-screen max-h-screen bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden font-sans">
 
@@ -23,20 +28,20 @@ const HistoryView = () => {
             <header className="flex flex-nowrap items-center justify-between gap-3 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 shrink-0">
                 <div className="flex items-center gap-3 shrink-0 md:flex-1">
                     <div className="relative group min-w-[140px] md:max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b1b1b1] group-focus-within:text-[#f87941] transition-colors" size={14} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b1b1b1] group-focus-within:text-[#F26389] transition-colors" size={14} />
                         <input
                             type="text"
                             placeholder="Search Ledger..."
-                            className="w-full h-9 pl-10 pr-4 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#f87941] transition-all"
+                            className="w-full h-9 pl-10 pr-4 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
                         />
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <button className="h-9 w-9 flex items-center justify-center border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                    <button className="h-9 w-9 flex items-center justify-center border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[#b1b1b1] hover:border-[#F26389] transition-all">
                         <Download size={14} />
                     </button>
-                    <button className="h-9 px-4 bg-[#f87941] text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-lg shadow-[#f87941]/20 active:scale-95 transition-all">
+                    <button className="h-9 px-4 bg-[#F26389] text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-lg shadow-[#F26389]/20 active:scale-95 transition-all">
                         <FileText size={14} strokeWidth={3} /> <span className="hidden md:inline">Export Report</span>
                     </button>
                 </div>
@@ -58,7 +63,7 @@ const HistoryView = () => {
                         {/* Chronological Separator */}
                         {(i === 0 || historyData[i-1].date !== item.date) && (
                             <div className="flex items-center gap-4 px-4 py-2">
-                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#f87941] whitespace-nowrap">{item.date}</span>
+                                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[#F26389] whitespace-nowrap">{item.date}</span>
                                 <div className="h-px w-full bg-[#f4f2f4] dark:bg-white/5" />
                             </div>
                         )}
@@ -66,7 +71,7 @@ const HistoryView = () => {
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="group bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-[24px] p-4 flex items-center gap-6 hover:border-[#f87941] transition-all"
+                            className="group bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-[24px] p-4 flex items-center gap-6 hover:border-[#F26389] transition-all"
                         >
                             {/* 1. Transaction Identity */}
                             <div className="flex-1 flex items-center gap-4 min-w-0">
@@ -77,7 +82,7 @@ const HistoryView = () => {
                                 <div className="truncate">
                                     <h3 className="text-[11px] font-black uppercase tracking-tight truncate">{item.customer}</h3>
                                     <div className="flex items-center gap-1.5 mt-0.5">
-                                        <Hash size={10} className="text-[#f87941]" />
+                                        <Hash size={10} className="text-[#F26389]" />
                                         <p className="text-[9px] text-[#b1b1b1] font-bold uppercase">{item.service} • {item.id}</p>
                                     </div>
                                 </div>
@@ -113,7 +118,7 @@ const HistoryView = () => {
 
                             {/* 5. Cmd */}
                             <div className="w-16 flex justify-end">
-                                <button className="p-2 text-[#b1b1b1] hover:text-[#f87941] transition-colors">
+                                <button className="p-2 text-[#b1b1b1] hover:text-[#F26389] transition-colors">
                                     <ArrowUpRight size={18} />
                                 </button>
                             </div>
@@ -126,13 +131,13 @@ const HistoryView = () => {
             <footer className="mt-auto pt-4 border-t border-[#f4f2f4] dark:border-white/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4 text-[9px] font-black text-[#b1b1b1] uppercase tracking-widest">
                     <span className="flex items-center gap-2">
-                        <Calendar size={10} className="text-[#f87941]" />
+                        <Calendar size={10} className="text-[#F26389]" />
                         Archive Span: Q2 2026
                     </span>
                 </div>
 
                 <div className="flex items-center gap-1">
-                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#F26389] transition-all">
                         <ChevronLeft size={14} />
                     </button>
                     {[1, 2, 3].map((page) => (
@@ -140,13 +145,13 @@ const HistoryView = () => {
                             key={page}
                             className={clsx(
                                 "w-8 h-8 flex items-center justify-center rounded-lg text-[10px] font-black transition-all",
-                                page === 1 ? "bg-[#f87941] text-white shadow-lg shadow-[#f87941]/20" : "text-[#b1b1b1] hover:bg-[#f4f2f4] dark:hover:bg-white/5"
+                                page === 1 ? "bg-[#F26389] text-white shadow-lg shadow-[#F26389]/20" : "text-[#b1b1b1] hover:bg-[#f4f2f4] dark:hover:bg-white/5"
                             )}
                         >
                             {page}
                         </button>
                     ))}
-                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#F26389] transition-all">
                         <ChevronRight size={14} />
                     </button>
                 </div>

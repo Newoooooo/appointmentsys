@@ -28,7 +28,7 @@ export const BoardView = ({ columns, tasks, scrollRef, onScroll }) => (
                         {tasks.filter(t => t.status === col.name).map((task) => (
                             <TaskCard key={task.id} task={task} />
                         ))}
-                        <button className="w-full py-3 border border-dashed border-[#f4f2f4] dark:border-white/10 rounded-xl text-[8px] font-black uppercase tracking-widest text-[#b1b1b1] hover:border-[#f87941] transition-all">+ Add Initiative</button>
+                        <button className="w-full py-3 border border-dashed border-[#f4f2f4] dark:border-white/10 rounded-xl text-[8px] font-black uppercase tracking-widest text-[#b1b1b1] hover:border-[#F26389] transition-all">+ Add Initiative</button>
                     </div>
                 </div>
             ))}

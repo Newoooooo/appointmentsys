@@ -1,23 +1,262 @@
-import React, { useState} from 'react';
-import {AnimatePresence } from 'framer-motion';
-import {
-    Plus, Search, Calendar as CalendarIcon,
-    LayoutList, LayoutDashboard, Download, Upload, Filter, ChevronDown, ArrowUpDown
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus } from 'lucide-react';
 import clsx from 'clsx';
-import DailyListView from "./DailyListView.jsx";
-import WeeklyGridView from "./WeeklyGridView.jsx";
-import FilterDropdown from "../../components/dropdowns/FilterDropdown.jsx";
+import DailyListView from './DailyListView.jsx';
+import WeeklyGridView from './WeeklyGridView.jsx';
+import FilterDropdown from '../../components/dropdowns/FilterDropdown.jsx';
+import AddBookingModal from '../../components/modals/AddBookingModal.jsx';
+import ViewBookingModal from '../../components/modals/ViewBookingModal.jsx';
+import { BookingService, ServiceService } from '../../api/services.js';
+
+const formatLocalISODate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const parseISODate = (isoDate) => {
+    if (!isoDate || typeof isoDate !== 'string') return null;
+    const parts = isoDate.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+    const [year, month, day] = parts;
+    const parsed = new Date(year, month - 1, day);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getStartOfWeekMonday = (inputDate) => {
+    const date = new Date(inputDate);
+    date.setHours(0, 0, 0, 0);
+    const day = date.getDay();
+    const mondayOffset = (day + 6) % 7;
+    date.setDate(date.getDate() - mondayOffset);
+    return date;
+};
+
+const addDays = (inputDate, days) => {
+    const next = new Date(inputDate);
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const resolveBookingDate = (dateValue, fallbackDay) => {
+    if (typeof dateValue?.toDate === 'function') {
+        const date = dateValue.toDate();
+        if (date instanceof Date && !Number.isNaN(date.getTime())) {
+            return formatLocalISODate(date);
+        }
+    }
+
+    if (dateValue instanceof Date && !Number.isNaN(dateValue.getTime())) {
+        return formatLocalISODate(dateValue);
+    }
+
+    if (typeof dateValue === 'string') {
+        const isoParsed = parseISODate(dateValue);
+        if (isoParsed) return formatLocalISODate(isoParsed);
+
+        const nativeParsed = new Date(dateValue);
+        if (!Number.isNaN(nativeParsed.getTime())) {
+            return formatLocalISODate(nativeParsed);
+        }
+    }
+
+    if (typeof dateValue === 'number') {
+        const nativeParsed = new Date(dateValue);
+        if (!Number.isNaN(nativeParsed.getTime())) {
+            return formatLocalISODate(nativeParsed);
+        }
+    }
+
+    const fallback = new Date();
+    const parsedDay = Number.parseInt(String(fallbackDay ?? ''), 10);
+    if (!Number.isNaN(parsedDay) && parsedDay >= 1 && parsedDay <= 31) {
+        fallback.setDate(parsedDay);
+    }
+
+    return formatLocalISODate(fallback);
+};
+
+const getWeekMonthLabel = (week) => {
+    if (!week || week.length === 0) return '';
+
+    const firstDate = parseISODate(week[0].fullDate);
+    const lastDate = parseISODate(week[week.length - 1].fullDate);
+
+    if (!firstDate || !lastDate) return '';
+
+    const firstMonth = firstDate.toLocaleDateString('en-US', { month: 'long' });
+    const lastMonth = lastDate.toLocaleDateString('en-US', { month: 'long' });
+    const firstYear = firstDate.getFullYear();
+    const lastYear = lastDate.getFullYear();
+
+    if (firstMonth === lastMonth && firstYear === lastYear) {
+        return `${firstMonth} ${firstYear}`;
+    }
+
+    if (firstYear === lastYear) {
+        return `${firstMonth} - ${lastMonth} ${firstYear}`;
+    }
+
+    return `${firstMonth} ${firstYear} - ${lastMonth} ${lastYear}`;
+};
 
 const Schedules = () => {
+    const today = useMemo(() => new Date(), []);
+    const todayIso = useMemo(() => formatLocalISODate(today), [today]);
+
     const [view, setView] = useState('day');
-    const [activeDay, setActiveDay] = useState('12');
-    const [appointments, setAppointments] = useState([
-        { id: 'A-1', time: '10:00', name: 'Alex Johnson', room: 'R-02', day: '12', type: 'urgent', staff: 'Dr. Adams' },
-        { id: 'A-2', time: '13:00', name: 'Sarah Smith', room: 'St-B', day: '12', type: 'normal', staff: 'Nurse Joy' },
-        { id: 'A-3', time: '11:00', name: 'Mike Ross', room: 'Web', day: '13', type: 'normal', staff: 'Dr. Smith' },
-    ]);
-    
+    const [activeDay, setActiveDay] = useState(todayIso);
+    const [rawBookings, setRawBookings] = useState([]);
+    const [serviceCategoryMap, setServiceCategoryMap] = useState({});
+    const [bookingModalOpen, setBookingModalOpen] = useState(false);
+    const [bookingPrefillContext, setBookingPrefillContext] = useState(null);
+    const [editingBooking, setEditingBooking] = useState(null);
+    const [viewBookingModalOpen, setViewBookingModalOpen] = useState(false);
+    const [selectedBooking, setSelectedBooking] = useState(null);
+    const [selectedCategory, setSelectedCategory] = useState('All');
+    const [rangeStart, setRangeStart] = useState('');
+    const [rangeEnd, setRangeEnd] = useState('');
+    const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeekMonday(today));
+
+    useEffect(() => {
+        const unsubscribe = BookingService.subscribeToBookings((bookings) => {
+            setRawBookings(bookings || []);
+        });
+
+        return () => {
+            if (unsubscribe) unsubscribe();
+        };
+    }, []);
+
+    useEffect(() => {
+        ServiceService.getServices()
+            .then((services) => {
+                const map = {};
+                (services || []).forEach((service) => {
+                    if (!service?.id) return;
+                    map[service.id] = service.category || 'Uncategorized';
+                });
+                setServiceCategoryMap(map);
+            })
+            .catch(console.error);
+    }, []);
+
+    const normalizedRange = useMemo(() => {
+        const start = parseISODate(rangeStart);
+        const end = parseISODate(rangeEnd);
+
+        if (start && end && start > end) {
+            return { start: end, end: start };
+        }
+
+        return { start, end };
+    }, [rangeStart, rangeEnd]);
+
+    const minWeekStart = useMemo(() => {
+        if (!normalizedRange.start) return null;
+        return getStartOfWeekMonday(normalizedRange.start);
+    }, [normalizedRange.start]);
+
+    const maxWeekStart = useMemo(() => {
+        if (!normalizedRange.end) return null;
+        return getStartOfWeekMonday(normalizedRange.end);
+    }, [normalizedRange.end]);
+
+    useEffect(() => {
+        if (minWeekStart && currentWeekStart < minWeekStart) {
+            setCurrentWeekStart(minWeekStart);
+            return;
+        }
+
+        if (maxWeekStart && currentWeekStart > maxWeekStart) {
+            setCurrentWeekStart(maxWeekStart);
+        }
+    }, [currentWeekStart, maxWeekStart, minWeekStart]);
+
+    const fullWeek = useMemo(() => {
+        return Array.from({ length: 7 }, (_, index) => {
+            const dayDate = addDays(currentWeekStart, index);
+            return {
+                label: dayDate.toLocaleDateString('en-US', { weekday: 'short' }),
+                dateNumber: String(dayDate.getDate()),
+                monthShort: dayDate.toLocaleDateString('en-US', { month: 'short' }),
+                fullDate: formatLocalISODate(dayDate)
+            };
+        });
+    }, [currentWeekStart]);
+
+    useEffect(() => {
+        if (fullWeek.some((day) => day.fullDate === activeDay)) return;
+        setActiveDay(fullWeek[0]?.fullDate || todayIso);
+    }, [activeDay, fullWeek, todayIso]);
+
+    const appointments = useMemo(() => {
+        return (rawBookings || []).map((booking) => {
+            const fullDate = resolveBookingDate(booking.date, booking.day);
+            const category = serviceCategoryMap[booking.serviceId] || booking.category || 'Uncategorized';
+            const startTime = booking.startTime || booking.time || '10:00';
+            const endTime = booking.endTime || booking.time || '11:00';
+
+            return {
+                id: booking.id,
+                time: startTime,
+                startTime,
+                endTime,
+                durationMinutes: booking.durationMinutes,
+                name: booking.clientName || booking.name,
+                room: booking.serviceTitle || booking.room,
+                day: fullDate,
+                fullDate,
+                category,
+                type: booking.type || 'normal',
+                staff: booking.staffName || booking.staff,
+                date: booking.date,
+                totalPrice: booking.totalPrice,
+                clientContact: booking.clientContact,
+                selectedAddons: booking.selectedAddons,
+                // Include all booking data for viewing/editing
+                ...booking
+            };
+        });
+    }, [rawBookings, serviceCategoryMap]);
+
+    const categoryOptions = useMemo(() => {
+        const categorySet = new Set();
+
+        Object.values(serviceCategoryMap).forEach((category) => {
+            if (category) categorySet.add(category);
+        });
+
+        appointments.forEach((appointment) => {
+            if (appointment.category) categorySet.add(appointment.category);
+        });
+
+        return ['All', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b))];
+    }, [appointments, serviceCategoryMap]);
+
+    const filteredAppointments = useMemo(() => {
+        return appointments.filter((appointment) => {
+            const inCategory = selectedCategory === 'All' || appointment.category === selectedCategory;
+            const inStartRange = !normalizedRange.start || appointment.fullDate >= formatLocalISODate(normalizedRange.start);
+            const inEndRange = !normalizedRange.end || appointment.fullDate <= formatLocalISODate(normalizedRange.end);
+            return inCategory && inStartRange && inEndRange;
+        });
+    }, [appointments, normalizedRange.end, normalizedRange.start, selectedCategory]);
+
+    const canGoPrev = useMemo(() => {
+        if (!minWeekStart) return true;
+        return currentWeekStart > minWeekStart;
+    }, [currentWeekStart, minWeekStart]);
+
+    const canGoNext = useMemo(() => {
+        if (!maxWeekStart) return true;
+        return currentWeekStart < maxWeekStart;
+    }, [currentWeekStart, maxWeekStart]);
+
+    const monthLabel = useMemo(() => getWeekMonthLabel(fullWeek), [fullWeek]);
+
     const staffColors = {
         'Dr. Adams': { bg: 'bg-blue-500', border: 'border-blue-500/20', text: '#3b82f6' },
         'Nurse Joy': { bg: 'bg-emerald-500', border: 'border-emerald-500/20', text: '#10b981' },
@@ -25,58 +264,179 @@ const Schedules = () => {
         'Jordan Smith': { bg: 'bg-indigo-500', border: 'border-indigo-500/20', text: '#6366f1' },
         'Elena Rodriguez': { bg: 'bg-cyan-500', border: 'border-cyan-500/20', text: '#06b6d4' },
         'Marcus Thompson': { bg: 'bg-pink-500', border: 'border-pink-500/20', text: '#ec4899' },
-        'Sarah Chen': { bg: 'bg-lime-500', border: 'border-lime-500/20', text: '#84cc16' },
+        'Sarah Chen': { bg: 'bg-lime-500', border: 'border-lime-500/20', text: '#84cc16' }
     };
 
-    const hours = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
-    const fullWeek = [
-        { label: 'Sun', date: '11' }, { label: 'Mon', date: '12' },
-        { label: 'Tue', date: '13' }, { label: 'Wed', date: '14' },
-        { label: 'Thu', date: '15' }, { label: 'Fri', date: '16' },
-        { label: 'Sat', date: '17' },
-    ];
+    const hours = Array.from({ length: 29 }, (_, index) => {
+        const totalMinutes = (7 * 60) + (index * 30);
+        const hour = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+        const minute = String(totalMinutes % 60).padStart(2, '0');
+        return `${hour}:${minute}`;
+    });
 
-    // Function to add new appointments from bookings
-    const addAppointment = (newAppointment) => {
-        setAppointments(prev => [...prev, newAppointment]);
+    const handlePrevWeek = () => {
+        if (!canGoPrev) return;
+        setCurrentWeekStart((prev) => addDays(prev, -7));
+        const parsedActiveDay = parseISODate(activeDay);
+        if (parsedActiveDay) {
+            setActiveDay(formatLocalISODate(addDays(parsedActiveDay, -7)));
+        }
+    };
+
+    const handleNextWeek = () => {
+        if (!canGoNext) return;
+        setCurrentWeekStart((prev) => addDays(prev, 7));
+        const parsedActiveDay = parseISODate(activeDay);
+        if (parsedActiveDay) {
+            setActiveDay(formatLocalISODate(addDays(parsedActiveDay, 7)));
+        }
+    };
+
+    const handleOpenBookingModal = () => {
+        setBookingPrefillContext(null);
+        setBookingModalOpen(true);
+    };
+
+    const handleSlotClick = (fullDate, hour) => {
+        const parsedDate = parseISODate(fullDate);
+        if (!parsedDate) {
+            handleOpenBookingModal();
+            return;
+        }
+
+        const [hourValue = '09', minuteValue = '00'] = String(hour || '09:00').split(':');
+
+        setBookingPrefillContext({
+            month: String(parsedDate.getMonth() + 1).padStart(2, '0'),
+            day: String(parsedDate.getDate()).padStart(2, '0'),
+            year: String(parsedDate.getFullYear()),
+            hour: String(hourValue).padStart(2, '0'),
+            minute: String(minuteValue).padStart(2, '0')
+        });
+        setBookingModalOpen(true);
+    };
+
+    const handleDateRangeStartChange = (event) => {
+        setRangeStart(event.target.value);
+    };
+
+    const handleDateRangeEndChange = (event) => {
+        setRangeEnd(event.target.value);
+    };
+
+    const handleModalClose = () => {
+        setBookingModalOpen(false);
+        setBookingPrefillContext(null);
+        setEditingBooking(null);
+    };
+
+    const handleAppointmentClick = (appointment) => {
+        setSelectedBooking(appointment);
+        setViewBookingModalOpen(true);
+    };
+
+    const handleEditBooking = (booking) => {
+        setEditingBooking(booking);
+        setBookingModalOpen(true);
+    };
+
+    const handleBookingDeleted = () => {
+        // Bookings will automatically update via the subscription
     };
 
     return (
-        <div className="bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6">
-            <header className="flex items-center justify-between gap-3 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 shrink-0 relative z-20">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <div className="relative group flex-1 md:flex-none md:min-w-[140px] md:max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b1b1b1] group-focus-within:text-[#f87941] transition-colors" size={14} />
-                        <input
-                            type="text"
-                            placeholder="Search..."
-                            className="w-full h-9 pl-9 pr-2 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#f87941] transition-all"
-                        />
+        <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden">
+            <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 relative z-20">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handlePrevWeek}
+                            disabled={!canGoPrev}
+                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
+                            aria-label="Previous week"
+                        >
+                            <ChevronLeft size={14} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleNextWeek}
+                            disabled={!canGoNext}
+                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
+                            aria-label="Next week"
+                        >
+                            <ChevronRight size={14} />
+                        </button>
+
+                        <div className="ml-1">
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#b1b1b1]">Week View</p>
+                            <p className="text-sm font-black tracking-tight text-[#2f3035] dark:text-white">{monthLabel}</p>
+                        </div>
                     </div>
 
-                    <div className="flex bg-[#f4f2f4] dark:bg-[#111] p-1 rounded-xl border border-[#f4f2f4] dark:border-white/10 shrink-0">
-                        <button onClick={() => setView('day')} className={clsx("p-1.5 rounded-lg transition-all", view === 'day' ? "bg-white dark:bg-white/10 shadow-sm text-[#f87941]" : "text-[#b1b1b1]")}>
-                            <LayoutList size={14} />
-                        </button>
-                        <button onClick={() => setView('week')} className={clsx("p-1.5 rounded-lg transition-all", view === 'week' ? "bg-white dark:bg-white/10 shadow-sm text-[#f87941]" : "text-[#b1b1b1]")}>
-                            <LayoutDashboard size={14} />
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-[#f4f2f4] dark:bg-[#111] p-1 rounded-xl border border-[#f4f2f4] dark:border-white/10 shrink-0">
+                            <button
+                                onClick={() => setView('day')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'day' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
+                            >
+                                <LayoutList size={14} />
+                            </button>
+                            <button
+                                onClick={() => setView('week')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'week' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
+                            >
+                                <LayoutDashboard size={14} />
+                            </button>
+                        </div>
+
+                        <FilterDropdown
+                            activeFilter={selectedCategory}
+                            onSelect={setSelectedCategory}
+                            align="right"
+                            options={categoryOptions}
+                        />
+
+                        <button
+                            onClick={handleOpenBookingModal}
+                            className="h-9 w-9 bg-[#F26389] text-white rounded-xl flex items-center justify-center shadow-lg shadow-[#F26389]/20 shrink-0"
+                        >
+                            <Plus size={14} strokeWidth={3} />
                         </button>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                    <FilterDropdown
-                        activeFilter="This Week"
-                        align="right"
-                        options={["This Week", "Last Week", "This Month"]}
+                <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[#b1b1b1]">Date Range</label>
+                    <input
+                        type="date"
+                        value={rangeStart}
+                        onChange={handleDateRangeStartChange}
+                        className="h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
                     />
-                    <button className="h-9 w-9 bg-[#f87941] text-white rounded-xl flex items-center justify-center shadow-lg shadow-[#f87941]/20 shrink-0">
-                        <Plus size={14} strokeWidth={3} />
-                    </button>
+                    <span className="text-[#b1b1b1] text-xs font-black">to</span>
+                    <input
+                        type="date"
+                        value={rangeEnd}
+                        onChange={handleDateRangeEndChange}
+                        className="h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
+                    />
+                    {(rangeStart || rangeEnd) && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setRangeStart('');
+                                setRangeEnd('');
+                            }}
+                            className="h-9 px-3 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] hover:text-[#F26389] hover:border-[#F26389] transition-all"
+                        >
+                            Clear
+                        </button>
+                    )}
                 </div>
             </header>
 
-            <div className="flex-1 w-full max-w-full overflow-hidden relative min-h-[500px]">
+            <div className="flex-1 min-h-0 w-full max-w-full overflow-hidden relative">
                 <AnimatePresence mode="wait">
                     {view === 'day' ? (
                         <DailyListView
@@ -85,8 +445,10 @@ const Schedules = () => {
                             setActiveDay={setActiveDay}
                             fullWeek={fullWeek}
                             hours={hours}
-                            appointments={appointments}
+                            appointments={filteredAppointments}
                             staffColors={staffColors}
+                            onSlotClick={handleSlotClick}
+                            onAppointmentClick={handleAppointmentClick}
                         />
                     ) : (
                         <WeeklyGridView
@@ -94,12 +456,30 @@ const Schedules = () => {
                             activeDay={activeDay}
                             fullWeek={fullWeek}
                             hours={hours}
-                            appointments={appointments}
+                            appointments={filteredAppointments}
                             staffColors={staffColors}
+                            onSlotClick={handleSlotClick}
+                            onAppointmentClick={handleAppointmentClick}
                         />
                     )}
                 </AnimatePresence>
             </div>
+
+            <AddBookingModal
+                isOpen={bookingModalOpen}
+                onClose={handleModalClose}
+                onSuccess={handleModalClose}
+                prefillContext={bookingPrefillContext}
+                editingBooking={editingBooking}
+            />
+
+            <ViewBookingModal
+                isOpen={viewBookingModalOpen}
+                onClose={() => setViewBookingModalOpen(false)}
+                booking={selectedBooking}
+                onEdit={handleEditBooking}
+                onDeleted={handleBookingDeleted}
+            />
         </div>
     );
 };

@@ -11,7 +11,7 @@ export const ServiceFooter = ({ currentCount, totalCount }) => {
             </div>
 
             <div className="flex items-center gap-1">
-                <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#F26389] transition-all">
                     <ChevronLeft size={14} />
                 </button>
                 {[1, 2, 3].map((page) => (
@@ -19,13 +19,13 @@ export const ServiceFooter = ({ currentCount, totalCount }) => {
                         key={page}
                         className={clsx(
                             "w-8 h-8 rounded-lg text-[10px] font-black transition-all",
-                            page === 1 ? "bg-[#f87941] text-white shadow-sm" : "text-[#b1b1b1] hover:bg-[#f4f2f4] dark:hover:bg-white/5"
+                            page === 1 ? "bg-[#F26389] text-white shadow-sm" : "text-[#b1b1b1] hover:bg-[#f4f2f4] dark:hover:bg-white/5"
                         )}
                     >
                         {page}
                     </button>
                 ))}
-                <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#F26389] transition-all">
                     <ChevronRight size={14} />
                 </button>
             </div>

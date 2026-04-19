@@ -7,19 +7,19 @@ const VARIANTS = {
     // --- PILL VARIANT (Absolute icon, Heavy tracking) ---
     pill: {
         wrapper: "relative w-full md:w-auto", // Removed hidden md:block
-        input: "pl-14 pr-6 py-4 bg-white dark:bg-[#282828] border border-[#e6e4e6] dark:border-[#3f3835] rounded-[24px] text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#f87941] w-full md:w-64 transition-all placeholder:text-[#b1b1b1]",
+        input: "pl-14 pr-6 py-4 bg-white dark:bg-[#282828] border border-[#e6e4e6] dark:border-[#3f3835] rounded-[24px] text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#F26389] w-full md:w-64 transition-all placeholder:text-[#b1b1b1]",
         icon: "absolute left-6 top-1/2 -translate-y-1/2 text-[#b1b1b1]",
     },
     // --- HEADER VARIANT (Flex container, Ring focus) ---
     header: {
-        wrapper: "flex-1 flex items-center bg-[#f4f2f4] dark:bg-[#1a1a1a] px-4 py-2.5 rounded-2xl gap-3 group transition-all focus-within:ring-2 focus-within:ring-[#f87941]/20",
+        wrapper: "flex-1 flex items-center bg-[#f4f2f4] dark:bg-[#1a1a1a] px-4 py-2.5 rounded-2xl gap-3 group transition-all focus-within:ring-2 focus-within:ring-[#F26389]/20",
         input: "bg-transparent border-none outline-none text-[11px] font-medium w-full placeholder:text-[#b1b1b1] placeholder:font-black placeholder:uppercase placeholder:tracking-widest",
-        icon: "text-[#b1b1b1] group-focus-within:text-[#f87941] transition-colors",
+        icon: "text-[#b1b1b1] group-focus-within:text-[#F26389] transition-colors",
     },
     topbar: {
         wrapper: "relative w-full group",
         input: "w-full bg-[#f4f2f4] dark:bg-[#1a1a1a] border border-transparent focus:border-[#e6e4e6] dark:focus:border-[#282828] py-2.5 pl-12 pr-16 rounded-xl text-sm focus:outline-none transition-all placeholder:text-[#b1b1b1] font-medium",
-        icon: "absolute left-4 top-1/2 -translate-y-1/2 text-[#b1b1b1] group-focus-within:text-[#f87941] transition-colors",
+        icon: "absolute left-4 top-1/2 -translate-y-1/2 text-[#b1b1b1] group-focus-within:text-[#F26389] transition-colors",
     },
     minimal: {
         wrapper: "relative w-full",

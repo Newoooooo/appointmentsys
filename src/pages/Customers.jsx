@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Search, UserPlus, MapPin, CreditCard,
@@ -6,16 +6,29 @@ import {
     Zap, Globe, Filter
 } from 'lucide-react';
 import clsx from 'clsx';
-
-// --- DATA MOCK ---
-const clientData = [
-    { id: 'CLT-882', name: 'Sophia Chen', email: 'sophia.c@tech.io', loc: 'San Francisco, CA', spend: '$3,100', status: 'VIP', lastActive: '2h ago' },
-    { id: 'CLT-883', name: 'Marcus Wright', email: 'm.wright@design.com', loc: 'New York, NY', spend: '$1,240', status: 'Regular', lastActive: '5h ago' },
-    { id: 'CLT-884', name: 'Elena Rodriguez', email: 'elena.rod@studio.com', loc: 'Austin, TX', spend: '$850', status: 'New', lastActive: '1d ago' },
-    { id: 'CLT-885', name: 'Jameson Locke', email: 'j.locke@unsc.gov', loc: 'Seattle, WA', spend: '$5,420', status: 'VIP', lastActive: '12m ago' },
-];
+import { CustomerService } from '../api/services.js';
+import AddCustomerModal from '../components/modals/AddCustomerModal.jsx';
 
 const Customers = () => {
+    const [clientData, setClientData] = useState([]);
+    const [isLoadingCustomers, setIsLoadingCustomers] = useState(true);
+    const [customerModalOpen, setCustomerModalOpen] = useState(false);
+    
+    useEffect(() => {
+        CustomerService.getCustomers().then(data => {
+            setClientData(data);
+            setIsLoadingCustomers(false);
+        }).catch(error => {
+            console.error('Error loading customers:', error);
+            setIsLoadingCustomers(false);
+        });
+    }, []);
+
+    const handleRefreshCustomers = () => {
+        CustomerService.getCustomers().then(data => {
+            setClientData(data);
+        });
+    };
     return (
         <div className="h-screen max-h-screen bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden font-sans">
 
@@ -23,20 +36,20 @@ const Customers = () => {
             <header className="flex flex-nowrap items-center justify-between gap-3 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 shrink-0">
                 <div className="flex items-center gap-3 shrink-0 md:flex-1">
                     <div className="relative group min-w-[140px] md:max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b1b1b1] group-focus-within:text-[#f87941] transition-colors" size={14} />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b1b1b1] group-focus-within:text-[#F26389] transition-colors" size={14} />
                         <input
                             type="text"
                             placeholder="Search Client Registry..."
-                            className="w-full h-9 pl-10 pr-4 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#f87941] transition-all"
+                            className="w-full h-9 pl-10 pr-4 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
                         />
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <button className="h-9 w-9 flex items-center justify-center border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                    <button className="h-9 w-9 flex items-center justify-center border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[#b1b1b1] hover:border-[#F26389] transition-all">
                         <Filter size={14} />
                     </button>
-                    <button className="h-9 px-4 bg-[#f87941] text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-lg shadow-[#f87941]/20 active:scale-95 transition-all">
+                    <button onClick={() => setCustomerModalOpen(true)} className="h-9 px-4 bg-[#F26389] text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-lg shadow-[#F26389]/20 active:scale-95 transition-all">
                         <UserPlus size={14} strokeWidth={3} /> <span className="hidden md:inline">Add Client</span>
                     </button>
                 </div>
@@ -58,11 +71,11 @@ const Customers = () => {
                         key={client.id}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="group bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-[24px] p-4 flex items-center gap-6 hover:border-[#f87941] transition-all"
+                        className="group bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-[24px] p-4 flex items-center gap-6 hover:border-[#F26389] transition-all"
                     >
                         {/* 1. Identity */}
                         <div className="flex-1 flex items-center gap-4 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-[#fdfcfc] dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 flex items-center justify-center text-[10px] font-black text-[#f87941] shrink-0 group-hover:bg-[#f87941] group-hover:text-white transition-colors">
+                            <div className="w-10 h-10 rounded-xl bg-[#fdfcfc] dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 flex items-center justify-center text-[10px] font-black text-[#F26389] shrink-0 group-hover:bg-[#F26389] group-hover:text-white transition-colors">
                                 {client.name.split(' ').map(n => n[0]).join('')}
                             </div>
                             <div className="truncate">
@@ -86,7 +99,7 @@ const Customers = () => {
                         {/* 3. Value Index */}
                         <div className="w-36 hidden lg:flex flex-col items-center border-l border-[#f4f2f4] dark:border-white/5 px-4">
                             <div className="flex items-center gap-1.5">
-                                <CreditCard size={10} className="text-[#f87941]" />
+                                <CreditCard size={10} className="text-[#F26389]" />
                                 <span className="text-[11px] font-black tracking-tighter">{client.spend}</span>
                             </div>
                             <span className="text-[7px] font-black uppercase tracking-[0.2em] text-[#b1b1b1] mt-0.5">LTV Index</span>
@@ -96,7 +109,7 @@ const Customers = () => {
                         <div className="w-32 hidden lg:flex justify-end border-l border-[#f4f2f4] dark:border-white/5 px-4">
                             <div className={clsx(
                                 "px-2 py-1 rounded-lg border text-[8px] font-black uppercase tracking-widest",
-                                client.status === 'VIP' ? "border-[#f87941]/30 text-[#f87941] bg-[#f87941]/5" : "border-[#b1b1b1]/20 text-[#b1b1b1]"
+                                client.status === 'VIP' ? "border-[#F26389]/30 text-[#F26389] bg-[#F26389]/5" : "border-[#b1b1b1]/20 text-[#b1b1b1]"
                             )}>
                                 {client.status}
                             </div>
@@ -116,13 +129,13 @@ const Customers = () => {
             <footer className="mt-auto pt-4 border-t border-[#f4f2f4] dark:border-white/5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-4 text-[9px] font-black text-[#b1b1b1] uppercase tracking-widest">
                     <span className="flex items-center gap-2">
-                        <Zap size={10} className="text-[#f87941]" />
+                        <Zap size={10} className="text-[#F26389]" />
                         Active Registry: 1,204 Nodes
                     </span>
                 </div>
 
                 <div className="flex items-center gap-1">
-                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#F26389] transition-all">
                         <ChevronLeft size={14} />
                     </button>
                     {[1, 2, 3].map((page) => (
@@ -130,17 +143,24 @@ const Customers = () => {
                             key={page}
                             className={clsx(
                                 "w-8 h-8 flex items-center justify-center rounded-lg text-[10px] font-black transition-all",
-                                page === 1 ? "bg-[#f87941] text-white shadow-lg shadow-[#f87941]/20" : "text-[#b1b1b1] hover:bg-[#f4f2f4] dark:hover:bg-white/5"
+                                page === 1 ? "bg-[#F26389] text-white shadow-lg shadow-[#F26389]/20" : "text-[#b1b1b1] hover:bg-[#f4f2f4] dark:hover:bg-white/5"
                             )}
                         >
                             {page}
                         </button>
                     ))}
-                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#f87941] transition-all">
+                    <button className="w-8 h-8 flex items-center justify-center rounded-lg border border-[#f4f2f4] dark:border-white/10 text-[#b1b1b1] hover:border-[#F26389] transition-all">
                         <ChevronRight size={14} />
                     </button>
                 </div>
             </footer>
+
+            {/* Add Customer Modal */}
+            <AddCustomerModal
+                isOpen={customerModalOpen}
+                onClose={() => setCustomerModalOpen(false)}
+                onSuccess={handleRefreshCustomers}
+            />
         </div>
     );
 };

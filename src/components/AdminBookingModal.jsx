@@ -117,6 +117,15 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
 
     const total = calculateTotal();
     const formatCurrency = (value) => `₱${value.toLocaleString()}`;
+    const accentColor = service?.categoryColor || '#F26389';
+
+    const toRgba = (hex, alpha) => {
+        if (!/^#[0-9A-F]{6}$/i.test(hex)) return `rgba(242, 99, 137, ${alpha})`;
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
 
     return (
         <AnimatePresence>
@@ -154,7 +163,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                         <div className="p-6 space-y-6">
                             {/* Client Information */}
                             <div className="space-y-4">
-                                <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-[#f87941]">Client Information</h3>
+                                <h3 className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: accentColor }}>Client Information</h3>
                                 <div className="space-y-3">
                                     <div>
                                         <label className="text-[8px] font-black uppercase tracking-widest text-[#b1b1b1] block mb-2">
@@ -165,7 +174,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                             value={clientName}
                                             onChange={(e) => setClientName(e.target.value)}
                                             placeholder="Enter client name"
-                                            className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#f87941] transition-all"
+                                            className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
                                         />
                                     </div>
                                     <div>
@@ -177,7 +186,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                             value={clientContact}
                                             onChange={(e) => setClientContact(e.target.value)}
                                             placeholder="Messenger link or phone"
-                                            className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#f87941] transition-all"
+                                            className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
                                         />
                                     </div>
                                 </div>
@@ -185,13 +194,13 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
 
                             {/* Package Details */}
                             <div className="space-y-4">
-                                <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-[#f87941]">Package Details</h3>
+                                <h3 className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: accentColor }}>Package Details</h3>
                                 <div className="bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-2xl p-4 space-y-2">
                                     <div className="flex justify-between items-center">
                                         <span className="text-[10px] font-bold uppercase tracking-widest text-[#b1b1b1]">
                                             {service?.title}
                                         </span>
-                                        <span className="text-sm font-black text-[#f87941]">
+                                        <span className="text-sm font-black" style={{ color: accentColor }}>
                                             {formatCurrency(service?.basePrice || 0)}
                                         </span>
                                     </div>
@@ -201,7 +210,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                             {/* Add-ons Section */}
                             {service?.addons && service.addons.length > 0 && (
                                 <div className="space-y-4">
-                                    <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-[#f87941]">Available Add-ons</h3>
+                                    <h3 className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: accentColor }}>Available Add-ons</h3>
                                     <div className="space-y-3">
                                         {service.addons.map((addon) => (
                                             <div
@@ -214,7 +223,8 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                                         id={`addon-${addon.id}`}
                                                         checked={selectedAddons[addon.id] || false}
                                                         onChange={() => handleAddonToggle(addon.id)}
-                                                        className="w-4 h-4 accent-[#f87941] rounded"
+                                                        className="w-4 h-4 rounded"
+                                                        style={{ accentColor }}
                                                     />
                                                     <label
                                                         htmlFor={`addon-${addon.id}`}
@@ -227,7 +237,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                                     type="number"
                                                     value={addonPrices[addon.id] || addon.defaultPrice}
                                                     onChange={(e) => handleAddonPriceChange(addon.id, e.target.value)}
-                                                    className="w-24 h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-lg text-[10px] font-bold text-right outline-none focus:border-[#f87941] transition-all"
+                                                    className="w-24 h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-lg text-[10px] font-bold text-right outline-none focus:border-[#F26389] transition-all"
                                                 />
                                             </div>
                                         ))}
@@ -245,7 +255,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                         type="date"
                                         value={selectedDate}
                                         onChange={(e) => setSelectedDate(e.target.value)}
-                                        className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold outline-none focus:border-[#f87941] transition-all"
+                                        className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold outline-none focus:border-[#F26389] transition-all"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -255,7 +265,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                     <select
                                         value={selectedTime}
                                         onChange={(e) => setSelectedTime(e.target.value)}
-                                        className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold outline-none focus:border-[#f87941] transition-all appearance-none cursor-pointer"
+                                        className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold outline-none focus:border-[#F26389] transition-all appearance-none cursor-pointer"
                                     >
                                         {timeSlots.map(time => (
                                             <option key={time} value={time}>{time}</option>
@@ -272,7 +282,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                 <select
                                     value={selectedStaff}
                                     onChange={(e) => setSelectedStaff(e.target.value)}
-                                    className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold outline-none focus:border-[#f87941] transition-all appearance-none cursor-pointer"
+                                    className="w-full h-10 px-4 bg-white dark:bg-[#0c0c0c] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold outline-none focus:border-[#F26389] transition-all appearance-none cursor-pointer"
                                 >
                                     <option value="">Select a staff member</option>
                                     {staff.map(member => (
@@ -284,7 +294,13 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                             </div>
 
                             {/* Price Summary */}
-                            <div className="bg-gradient-to-r from-[#f87941]/10 to-[#f87941]/5 dark:from-[#f87941]/5 dark:to-[#f87941]/0 border border-[#f87941]/20 rounded-2xl p-4">
+                            <div
+                                className="border rounded-2xl p-4"
+                                style={{
+                                    background: `linear-gradient(to right, ${toRgba(accentColor, 0.12)}, ${toRgba(accentColor, 0.04)})`,
+                                    borderColor: toRgba(accentColor, 0.24)
+                                }}
+                            >
                                 <div className="space-y-2">
                                     <div className="flex justify-between items-center text-[10px]">
                                         <span className="font-bold uppercase tracking-widest text-[#b1b1b1]">
@@ -295,7 +311,7 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                         </span>
                                     </div>
                                     {Object.keys(selectedAddons).some(id => selectedAddons[id]) && (
-                                        <div className="flex justify-between items-center text-[10px] border-t border-[#f87941]/20 pt-2">
+                                        <div className="flex justify-between items-center text-[10px] border-t pt-2" style={{ borderTopColor: toRgba(accentColor, 0.2) }}>
                                             <span className="font-bold uppercase tracking-widest text-[#b1b1b1]">
                                                 Add-ons
                                             </span>
@@ -304,11 +320,11 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                             </span>
                                         </div>
                                     )}
-                                    <div className="flex justify-between items-center text-sm border-t border-[#f87941]/30 pt-2">
-                                        <span className="font-black uppercase tracking-widest text-[#f87941]">
+                                    <div className="flex justify-between items-center text-sm border-t pt-2" style={{ borderTopColor: toRgba(accentColor, 0.3) }}>
+                                        <span className="font-black uppercase tracking-widest" style={{ color: accentColor }}>
                                             Total
                                         </span>
-                                        <span className="font-black text-[#f87941] text-lg">
+                                        <span className="font-black text-lg" style={{ color: accentColor }}>
                                             {formatCurrency(total)}
                                         </span>
                                     </div>
@@ -326,7 +342,11 @@ const AdminBookingModal = ({ isOpen, onClose, service, onConfirm }) => {
                                 <button
                                     onClick={handleSubmit}
                                     disabled={isLoading}
-                                    className="flex-1 h-10 bg-[#f87941] text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-lg shadow-[#f87941]/20 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="flex-1 h-10 text-white rounded-xl text-[9px] font-black uppercase tracking-[0.2em] active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{
+                                        backgroundColor: accentColor,
+                                        boxShadow: `0 10px 22px ${toRgba(accentColor, 0.25)}`
+                                    }}
                                 >
                                     Confirm & Schedule
                                 </button>
