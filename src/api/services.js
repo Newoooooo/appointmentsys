@@ -421,16 +421,12 @@ export const BookingService = {
             const endTime = toTimeLabel(computedEndMinutes);
             const durationMinutes = Math.max(15, computedEndMinutes - startMinutes);
 
-            const hasConflict = await this.hasBookingConflict({
+            const hasOverlap = await this.hasBookingConflict({
                 date: bookingData.date,
                 staffId: bookingData.staffId,
                 startTime,
                 endTime
             });
-
-            if (hasConflict) {
-                throw new Error('Booking time overlaps with an existing booking for this staff member.');
-            }
 
             const booking = await addDocument('bookings', {
                 ...bookingData,
@@ -445,6 +441,7 @@ export const BookingService = {
             
             return {
                 success: true,
+                hasOverlap,
                 id: booking.id,
                 appointment: {
                     id: booking.id,
@@ -511,6 +508,55 @@ export const BookingService = {
             return { success: true, id: bookingId };
         } catch (error) {
             console.error('Error updating booking:', error);
+            throw error;
+        }
+    },
+
+    async extendBooking(bookingId, { newEndTime, actor, reason } = {}) {
+        try {
+            const booking = await getDocument('bookings', bookingId);
+            if (!booking) throw new Error('Booking not found');
+
+            const oldEndTime = booking.endTime;
+            const startMinutes = toMinutes(booking.startTime || booking.time || '09:00');
+            const newEndMinutes = toMinutes(newEndTime);
+
+            if (newEndMinutes === null || startMinutes === null) {
+                throw new Error('Invalid time value');
+            }
+            if (newEndMinutes <= startMinutes) {
+                throw new Error('New end time must be after start time');
+            }
+
+            const newDurationMinutes = newEndMinutes - startMinutes;
+
+            const hasOverlap = await this.hasBookingConflict({
+                bookingId,
+                date: booking.date,
+                staffId: booking.staffId,
+                startTime: booking.startTime || booking.time,
+                endTime: newEndTime
+            });
+
+            await updateDocument('bookings', bookingId, {
+                endTime: newEndTime,
+                durationMinutes: newDurationMinutes,
+                updatedAt: serverTimestamp()
+            });
+
+            await addDocument('bookingAudits', {
+                bookingId,
+                action: 'extended',
+                oldEnd: oldEndTime,
+                newEnd: newEndTime,
+                actor: actor || 'system',
+                reason: reason || '',
+                timestamp: serverTimestamp()
+            });
+
+            return { success: true, hasOverlap, oldEndTime, newEndTime };
+        } catch (error) {
+            console.error('Error extending booking:', error);
             throw error;
         }
     },
