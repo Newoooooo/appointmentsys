@@ -353,7 +353,7 @@ const Schedules = () => {
                             type="button"
                             onClick={handlePrevWeek}
                             disabled={!canGoPrev}
-                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
+                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#767676] dark:text-[#a0a0a0] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
                             aria-label="Previous week"
                         >
                             <ChevronLeft size={14} />
@@ -362,14 +362,14 @@ const Schedules = () => {
                             type="button"
                             onClick={handleNextWeek}
                             disabled={!canGoNext}
-                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
+                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#767676] dark:text-[#a0a0a0] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
                             aria-label="Next week"
                         >
                             <ChevronRight size={14} />
                         </button>
 
                         <div className="ml-1">
-                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#b1b1b1]">Week View</p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#767676] dark:text-[#a0a0a0]">Week View</p>
                             <p className="text-sm font-black tracking-tight text-[#2f3035] dark:text-white">{monthLabel}</p>
                         </div>
                     </div>
@@ -378,13 +378,13 @@ const Schedules = () => {
                         <div className="flex bg-[#f4f2f4] dark:bg-[#111] p-1 rounded-xl border border-[#f4f2f4] dark:border-white/10 shrink-0">
                             <button
                                 onClick={() => setView('day')}
-                                className={clsx('p-1.5 rounded-lg transition-all', view === 'day' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'day' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
                             >
                                 <LayoutList size={14} />
                             </button>
                             <button
                                 onClick={() => setView('week')}
-                                className={clsx('p-1.5 rounded-lg transition-all', view === 'week' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'week' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
                             >
                                 <LayoutDashboard size={14} />
                             </button>
@@ -407,14 +407,14 @@ const Schedules = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[#b1b1b1]">Date Range</label>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[#767676] dark:text-[#a0a0a0]">Date Range</label>
                     <input
                         type="date"
                         value={rangeStart}
                         onChange={handleDateRangeStartChange}
                         className="h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
                     />
-                    <span className="text-[#b1b1b1] text-xs font-black">to</span>
+                    <span className="text-[#767676] dark:text-[#a0a0a0] text-xs font-black">to</span>
                     <input
                         type="date"
                         value={rangeEnd}
@@ -428,7 +428,7 @@ const Schedules = () => {
                                 setRangeStart('');
                                 setRangeEnd('');
                             }}
-                            className="h-9 px-3 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] hover:text-[#F26389] hover:border-[#F26389] transition-all"
+                            className="h-9 px-3 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-[#767676] dark:text-[#a0a0a0] hover:text-[#F26389] hover:border-[#F26389] transition-all"
                         >
                             Clear
                         </button>

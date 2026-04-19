@@ -23,7 +23,7 @@ export const AppointmentCard = ({ appt, staffColor, onClick }) => (
         </h3>
 
         <div className="flex items-center justify-between pt-3 border-t border-[#f4f2f4] dark:border-white/5">
-            <p className="text-[8px] font-bold text-[#b1b1b1] uppercase flex items-center gap-1.5">
+            <p className="text-[8px] font-bold text-[#767676] dark:text-[#a0a0a0] uppercase flex items-center gap-1.5">
                 <Clock size={10} /> {(appt.startTime || appt.time)}{appt.endTime ? ` - ${appt.endTime}` : ''} • Room {appt.room}
             </p>
             <span className={clsx("text-[8px] font-black uppercase tracking-widest", staffColor?.text)}>

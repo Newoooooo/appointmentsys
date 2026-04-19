@@ -1,11 +1,33 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Edit2, Trash2, Calendar, Clock, User, Package, DollarSign } from 'lucide-react';
+import { X, Edit2, Trash2, Calendar, Clock, User, Package, DollarSign, ChevronsRight } from 'lucide-react';
 import { BookingService } from '../../api/services';
+
+const toMinutes = (t) => {
+    if (!t || !String(t).includes(':')) return null;
+    const [h, m] = String(t).split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+};
+
+const toTimeLabel = (mins) => {
+    const bounded = Math.max(0, Math.min(23 * 60 + 59, Number(mins) || 0));
+    return `${String(Math.floor(bounded / 60)).padStart(2, '0')}:${String(bounded % 60).padStart(2, '0')}`;
+};
 
 export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [error, setError] = useState('');
+    const [isExtending, setIsExtending] = useState(false);
+    const [extendSuccess, setExtendSuccess] = useState('');
+    const [extendError, setExtendError] = useState('');
+    const [extendOverlapWarn, setExtendOverlapWarn] = useState(false);
+    const [customEndTime, setCustomEndTime] = useState('');
+    const [extendReason, setExtendReason] = useState('');
+    const [showExtend, setShowExtend] = useState(false);
+    const [currentBooking, setCurrentBooking] = useState(null);
+
+    const activeBooking = currentBooking || booking;
 
     const handleDelete = async () => {
         if (!window.confirm('Are you sure you want to cancel this booking? This action cannot be undone.')) {
@@ -16,7 +38,7 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
         setError('');
 
         try {
-            await BookingService.deleteBooking(booking.id);
+            await BookingService.deleteBooking(activeBooking.id);
             onDeleted?.();
             onClose();
         } catch (err) {
@@ -26,12 +48,73 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
         }
     };
 
-    if (!booking) return null;
+    const handleExtend = async (minutesToAdd) => {
+        setExtendError('');
+        setExtendSuccess('');
+        setExtendOverlapWarn(false);
+        setIsExtending(true);
+
+        try {
+            const currentEnd = activeBooking.endTime;
+            const currentEndMins = toMinutes(currentEnd) ?? (toMinutes(activeBooking.startTime || activeBooking.time) + (activeBooking.durationMinutes || 60));
+            const newEndMins = currentEndMins + minutesToAdd;
+            const newEndTime = toTimeLabel(newEndMins);
+            const result = await BookingService.extendBooking(activeBooking.id, {
+                newEndTime,
+                actor: 'staff',
+                reason: extendReason
+            });
+            setCurrentBooking({ ...activeBooking, endTime: newEndTime, durationMinutes: (toMinutes(activeBooking.startTime || activeBooking.time) !== null ? newEndMins - toMinutes(activeBooking.startTime || activeBooking.time) : activeBooking.durationMinutes) });
+            setExtendSuccess(`Extended to ${newEndTime}`);
+            if (result.hasOverlap) setExtendOverlapWarn(true);
+            setExtendReason('');
+        } catch (err) {
+            setExtendError(err.message || 'Failed to extend booking');
+        } finally {
+            setIsExtending(false);
+        }
+    };
+
+    const handleCustomExtend = async () => {
+        if (!customEndTime) return;
+        setExtendError('');
+        setExtendSuccess('');
+        setExtendOverlapWarn(false);
+        setIsExtending(true);
+
+        const startMins = toMinutes(activeBooking.startTime || activeBooking.time);
+        const newEndMins = toMinutes(customEndTime);
+        if (newEndMins === null || startMins === null || newEndMins <= startMins) {
+            setExtendError('New end time must be after booking start time');
+            setIsExtending(false);
+            return;
+        }
+        // Snap to 30-min increments
+        const snappedMins = Math.round(newEndMins / 30) * 30;
+        const snappedEnd = toTimeLabel(snappedMins);
+
+        try {
+            const result = await BookingService.extendBooking(activeBooking.id, {
+                newEndTime: snappedEnd,
+                actor: 'staff',
+                reason: extendReason
+            });
+            setCurrentBooking({ ...activeBooking, endTime: snappedEnd, durationMinutes: snappedMins - startMins });
+            setExtendSuccess(`Extended to ${snappedEnd}`);
+            if (result.hasOverlap) setExtendOverlapWarn(true);
+            setCustomEndTime('');
+            setExtendReason('');
+        } catch (err) {
+            setExtendError(err.message || 'Failed to extend booking');
+        } finally {
+            setIsExtending(false);
+        }
+    };
+
+    if (!activeBooking) return null;
 
     // Calculate total with addons
-    const addonTotal = [...(booking.selectedAddons || []), ...(booking.customAddons || [])]
-        .reduce((sum, addon) => sum + (addon.price || 0), 0);
-    const total = (booking.totalPrice || 0);
+    const total = (activeBooking.totalPrice || 0);
 
     return (
         <AnimatePresence>
@@ -79,22 +162,22 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                                 </div>
                                 <div className="space-y-2 pl-2">
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-[#b1b1b1]">Name:</span>
-                                        <span className="text-sm font-bold">{booking.clientName || 'N/A'}</span>
+                                        <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Name:</span>
+                                        <span className="text-sm font-bold">{activeBooking.clientName || 'N/A'}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-[#b1b1b1]">Contact:</span>
-                                        <span className="text-sm font-bold">{booking.clientContact || 'N/A'}</span>
+                                        <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Contact:</span>
+                                        <span className="text-sm font-bold">{activeBooking.clientContact || 'N/A'}</span>
                                     </div>
-                                    {booking.clientEmail && (
+                                    {activeBooking.clientEmail && (
                                         <div className="flex justify-between">
-                                            <span className="text-sm text-[#b1b1b1]">Email:</span>
-                                            <span className="text-sm font-bold">{booking.clientEmail}</span>
+                                            <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Email:</span>
+                                            <span className="text-sm font-bold">{activeBooking.clientEmail}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-[#b1b1b1]">Booked Via:</span>
-                                        <span className="text-sm font-bold">{booking.bookingSource || 'N/A'}</span>
+                                        <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Booked Via:</span>
+                                        <span className="text-sm font-bold">{activeBooking.bookingSource || 'N/A'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -109,47 +192,47 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                                 </div>
                                 <div className="space-y-2 pl-2">
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-[#b1b1b1]">Service:</span>
-                                        <span className="text-sm font-bold">{booking.serviceTitle || 'N/A'}</span>
+                                        <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Service:</span>
+                                        <span className="text-sm font-bold">{activeBooking.serviceTitle || 'N/A'}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-[#b1b1b1]">Date:</span>
+                                        <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Date:</span>
                                         <span className="text-sm font-bold flex items-center gap-2">
                                             <Calendar size={14} className="text-[#F26389]" />
-                                            {booking.date || 'N/A'}
+                                            {activeBooking.date || 'N/A'}
                                         </span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-[#b1b1b1]">Time:</span>
+                                        <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Time:</span>
                                         <span className="text-sm font-bold flex items-center gap-2">
                                             <Clock size={14} className="text-[#F26389]" />
-                                            {booking.startTime || booking.time} - {booking.endTime || 'N/A'}
+                                            {activeBooking.startTime || activeBooking.time} - {activeBooking.endTime || 'N/A'}
                                         </span>
                                     </div>
-                                    {booking.staffName && (
+                                    {activeBooking.staffName && (
                                         <div className="flex justify-between">
-                                            <span className="text-sm text-[#b1b1b1]">Staff:</span>
-                                            <span className="text-sm font-bold">{booking.staffName}</span>
+                                            <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Staff:</span>
+                                            <span className="text-sm font-bold">{activeBooking.staffName}</span>
                                         </div>
                                     )}
                                     <div className="flex justify-between">
-                                        <span className="text-sm text-[#b1b1b1]">Status:</span>
+                                        <span className="text-sm text-[#767676] dark:text-[#a0a0a0]">Status:</span>
                                         <span className={`text-sm font-bold ${
-                                            booking.status === 'Confirmed' 
-                                                ? 'text-green-600' 
-                                                : booking.status === 'Cancelled'
+                                            activeBooking.status === 'Confirmed'
+                                                ? 'text-green-600'
+                                                : activeBooking.status === 'Cancelled'
                                                 ? 'text-red-600'
                                                 : 'text-[#F26389]'
                                         }`}>
-                                            {booking.status || 'N/A'}
+                                            {activeBooking.status || 'N/A'}
                                         </span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Add-ons & Pricing */}
-                            {((booking.selectedAddons && booking.selectedAddons.length > 0) || 
-                              (booking.customAddons && booking.customAddons.length > 0)) && (
+                            {((activeBooking.selectedAddons && activeBooking.selectedAddons.length > 0) ||
+                              (activeBooking.customAddons && activeBooking.customAddons.length > 0)) && (
                                 <div className="bg-[#fdfcfc] dark:bg-[#0c0c0c] rounded-xl p-4 border border-[#f4f2f4] dark:border-white/10">
                                     <div className="flex items-center gap-3 mb-4">
                                         <div className="w-10 h-10 rounded-xl bg-[#F26389]/10 flex items-center justify-center">
@@ -158,15 +241,15 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                                         <h3 className="text-sm font-black uppercase tracking-wide">Add-ons</h3>
                                     </div>
                                     <div className="space-y-2 pl-2">
-                                        {booking.selectedAddons?.map((addon, index) => (
+                                        {activeBooking.selectedAddons?.map((addon, index) => (
                                             <div key={index} className="flex justify-between text-sm">
-                                                <span className="text-[#b1b1b1]">{addon.name}</span>
+                                                <span className="text-[#767676] dark:text-[#a0a0a0]">{addon.name}</span>
                                                 <span className="font-bold">+₱{addon.price?.toLocaleString()}</span>
                                             </div>
                                         ))}
-                                        {booking.customAddons?.map((addon, index) => (
+                                        {activeBooking.customAddons?.map((addon, index) => (
                                             <div key={index} className="flex justify-between text-sm">
-                                                <span className="text-[#b1b1b1]">{addon.name} (Custom)</span>
+                                                <span className="text-[#767676] dark:text-[#a0a0a0]">{addon.name} (Custom)</span>
                                                 <span className="font-bold">+₱{addon.price?.toLocaleString()}</span>
                                             </div>
                                         ))}
@@ -180,6 +263,90 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                                     <span className="text-sm font-black uppercase tracking-wide">Total Amount:</span>
                                     <span className="text-2xl font-black text-[#F26389]">₱{total.toLocaleString()}</span>
                                 </div>
+                            </div>
+
+                            {/* Extend Booking */}
+                            <div className="bg-[#fdfcfc] dark:bg-[#0c0c0c] rounded-xl border border-[#f4f2f4] dark:border-white/10 overflow-hidden">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExtend((v) => !v)}
+                                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-[#F26389]/10 flex items-center justify-center">
+                                            <ChevronsRight size={16} className="text-[#F26389]" />
+                                        </div>
+                                        <span className="text-sm font-black uppercase tracking-wide">Extend Booking</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-[#767676] dark:text-[#a0a0a0] uppercase tracking-widest">{showExtend ? 'Hide' : 'Show'}</span>
+                                </button>
+
+                                {showExtend && (
+                                    <div className="px-4 pb-4 space-y-3 border-t border-[#f4f2f4] dark:border-white/10 pt-3">
+                                        {extendSuccess && (
+                                            <div className="p-2 bg-green-500/10 border border-green-500/30 rounded-lg text-green-700 dark:text-green-400 text-xs font-bold">
+                                                ✓ {extendSuccess}
+                                            </div>
+                                        )}
+                                        {extendOverlapWarn && (
+                                            <div className="p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-700 dark:text-yellow-400 text-xs font-bold">
+                                                ⚠ This booking now overlaps with another booking.
+                                            </div>
+                                        )}
+                                        {extendError && (
+                                            <div className="p-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 text-xs font-bold">
+                                                {extendError}
+                                            </div>
+                                        )}
+
+                                        <div className="flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleExtend(30)}
+                                                disabled={isExtending}
+                                                className="flex-1 py-2 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs font-black uppercase tracking-wide hover:border-[#F26389] hover:text-[#F26389] disabled:opacity-50 transition-all"
+                                            >
+                                                +30 min
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleExtend(60)}
+                                                disabled={isExtending}
+                                                className="flex-1 py-2 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs font-black uppercase tracking-wide hover:border-[#F26389] hover:text-[#F26389] disabled:opacity-50 transition-all"
+                                            >
+                                                +60 min
+                                            </button>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="time"
+                                                value={customEndTime}
+                                                step={1800}
+                                                onChange={(e) => setCustomEndTime(e.target.value)}
+                                                className="flex-1 h-9 px-3 bg-white dark:bg-[#111] border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs font-bold outline-none focus:border-[#F26389] transition-all"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={handleCustomExtend}
+                                                disabled={isExtending || !customEndTime}
+                                                className="px-4 h-9 bg-[#F26389] text-white rounded-lg text-xs font-black uppercase tracking-wide disabled:opacity-50 hover:bg-[#BF637C] transition-colors"
+                                            >
+                                                Set
+                                            </button>
+                                        </div>
+
+                                        <div>
+                                            <input
+                                                type="text"
+                                                value={extendReason}
+                                                onChange={(e) => setExtendReason(e.target.value)}
+                                                placeholder="Reason (optional)"
+                                                className="w-full h-9 px-3 bg-white dark:bg-[#111] border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs font-bold outline-none focus:border-[#F26389] transition-all placeholder:text-[#b1b1b1]"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -195,7 +362,7 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                             </button>
                             <button
                                 onClick={() => {
-                                    onEdit?.(booking);
+                                    onEdit?.(activeBooking);
                                     onClose();
                                 }}
                                 className="flex-1 px-4 py-2 bg-[#F26389] text-white rounded-lg font-bold uppercase text-sm hover:bg-[#BF637C] transition-colors flex items-center justify-center gap-2"

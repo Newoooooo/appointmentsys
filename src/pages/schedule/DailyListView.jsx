@@ -1,25 +1,60 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { DaySelector } from './DaySelector.jsx';
 import { TimelineSlot } from './TimeLineSlot.jsx';
 
-const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments, staffColors, onSlotClick, onAppointmentClick }) => {
-    const SLOT_MINUTES = 30;
+const SLOT_HEIGHT_PX = 56; // h-14 = 3.5rem = 56px
+const SLOT_MINUTES = 30;
+const DAY_START_MINUTES = 7 * 60; // 07:00
 
-    const toMinutes = (timeValue) => {
-        if (!timeValue || !String(timeValue).includes(':')) return null;
-        const [hour, minute] = String(timeValue).split(':').map((part) => Number.parseInt(part, 10));
-        if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
-        return hour * 60 + minute;
+const toMinutes = (timeValue) => {
+    if (!timeValue || !String(timeValue).includes(':')) return null;
+    const [hour, minute] = String(timeValue).split(':').map((part) => Number.parseInt(part, 10));
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+    return hour * 60 + minute;
+};
+
+const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments, staffColors, onSlotClick, onAppointmentClick }) => {
+    const [nowMinutes, setNowMinutes] = useState(() => {
+        const n = new Date();
+        return n.getHours() * 60 + n.getMinutes();
+    });
+
+    useEffect(() => {
+        const tick = () => {
+            const n = new Date();
+            setNowMinutes(n.getHours() * 60 + n.getMinutes());
+        };
+        const id = setInterval(tick, 60_000);
+        return () => clearInterval(id);
+    }, []);
+
+    const nowTopPx = ((nowMinutes - DAY_START_MINUTES) / SLOT_MINUTES) * SLOT_HEIGHT_PX;
+    const showNowLine = nowMinutes >= DAY_START_MINUTES && nowMinutes <= DAY_START_MINUTES + hours.length * SLOT_MINUTES;
+
+    const getAppointmentsStartingAtSlot = (hourValue) => {
+        const slotMinutes = toMinutes(hourValue);
+        if (slotMinutes === null) return [];
+
+        return appointments
+            .filter((item) => {
+                if (item.fullDate !== activeDay) return false;
+                const start = toMinutes(item.startTime || item.time);
+                return start === slotMinutes;
+            })
+            .map((item) => {
+                const startMinutes = toMinutes(item.startTime || item.time);
+                const endMinutes = toMinutes(item.endTime);
+                const resolvedEnd = endMinutes ?? (startMinutes + (Number(item.durationMinutes) || 60));
+                const slotSpan = Math.max(1, Math.ceil((resolvedEnd - startMinutes) / SLOT_MINUTES));
+                return { appointment: item, slotSpan };
+            });
     };
 
-    const getAppointmentAtSlot = (hourValue) => {
+    const isSlotOccupied = (hourValue) => {
         const slotMinutes = toMinutes(hourValue);
-        if (slotMinutes === null) {
-            return { appointment: null, isContinuation: false, isOccupied: false, isStart: false, slotSpan: 1 };
-        }
-
-        const matching = appointments.find((item) => {
+        if (slotMinutes === null) return false;
+        return appointments.some((item) => {
             if (item.fullDate !== activeDay) return false;
             const start = toMinutes(item.startTime || item.time);
             const end = toMinutes(item.endTime);
@@ -27,23 +62,6 @@ const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments,
             const resolvedEnd = end ?? (start + (Number(item.durationMinutes) || 60));
             return slotMinutes >= start && slotMinutes < resolvedEnd;
         });
-
-        if (!matching) {
-            return { appointment: null, isContinuation: false, isOccupied: false, isStart: false, slotSpan: 1 };
-        }
-
-        const startMinutes = toMinutes(matching.startTime || matching.time);
-        const endMinutes = toMinutes(matching.endTime);
-        const resolvedEnd = endMinutes ?? (startMinutes + (Number(matching.durationMinutes) || 60));
-        const slotSpan = Math.max(1, Math.ceil((resolvedEnd - startMinutes) / SLOT_MINUTES));
-        const isStart = slotMinutes === startMinutes;
-        return {
-            appointment: matching,
-            isContinuation: slotMinutes !== startMinutes,
-            isOccupied: true,
-            isStart,
-            slotSpan
-        };
     };
 
     return (
@@ -59,23 +77,33 @@ const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments,
                 onSelectDay={setActiveDay}
             />
 
-            <div className="space-y-0 max-h-150 overflow-y-auto">
+            <div className="space-y-0 max-h-150 overflow-y-auto relative" style={{ position: 'relative' }}>
+                {showNowLine && (
+                    <div
+                        className="absolute left-0 right-0 z-20 pointer-events-none"
+                        style={{ top: `${nowTopPx}px` }}
+                    >
+                        <div className="flex items-center gap-1 ml-10">
+                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0" />
+                            <div className="flex-1 h-px bg-red-500" />
+                        </div>
+                    </div>
+                )}
+
                 {hours.map((hour) => {
-                    const slotState = getAppointmentAtSlot(hour);
+                    const startingAppts = getAppointmentsStartingAtSlot(hour);
+                    const occupied = isSlotOccupied(hour);
 
                     return (
                         <TimelineSlot
                             key={hour}
                             hour={hour}
                             day={activeDay}
-                            appt={slotState.appointment}
-                            isContinuation={slotState.isContinuation}
-                            isOccupied={slotState.isOccupied}
-                            isStart={slotState.isStart}
-                            slotSpan={slotState.slotSpan}
+                            appointments={startingAppts}
+                            isOccupied={occupied}
                             onSlotClick={onSlotClick}
                             onAppointmentClick={onAppointmentClick}
-                            staffColor={staffColors[slotState.appointment?.staff]}
+                            staffColors={staffColors}
                         />
                     );
                 })}
