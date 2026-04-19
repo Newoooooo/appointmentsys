@@ -1,487 +1,269 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus } from 'lucide-react';
-import clsx from 'clsx';
-import DailyListView from './DailyListView.jsx';
-import WeeklyGridView from './WeeklyGridView.jsx';
-import FilterDropdown from '../../components/dropdowns/FilterDropdown.jsx';
-import AddBookingModal from '../../components/modals/AddBookingModal.jsx';
-import ViewBookingModal from '../../components/modals/ViewBookingModal.jsx';
-import { BookingService, ServiceService } from '../../api/services.js';
+import { CategoryService } from '../../api/services.js';
+import { CalendarBookingService } from '../../features/calendar/services/calendarBookingService.js';
+import { CalendarTaskService } from '../../features/calendar/services/calendarTaskService.js';
+import CalendarToolbar from '../../features/calendar/components/CalendarToolbar.jsx';
+import MonthView from '../../features/calendar/components/MonthView.jsx';
+import WeekView from '../../features/calendar/components/WeekView.jsx';
+import DayView from '../../features/calendar/components/DayView.jsx';
+import BookingModal from '../../features/calendar/components/BookingModal.jsx';
+import BookingDetailsDrawer from '../../features/calendar/components/BookingDetailsDrawer.jsx';
+import RescheduleModal from '../../features/calendar/components/RescheduleModal.jsx';
+import CancelModal from '../../features/calendar/components/CancelModal.jsx';
+import {
+  generateTimeSlots,
+} from '../../features/calendar/utils/slotGenerator.js';
+import {
+  formatLocalISO,
+  formatMonthYear,
+  formatFullDate,
+  formatShortDate,
+  startOfWeek,
+  getWeekDays,
+  addDays,
+} from '../../features/calendar/utils/dateMath.js';
 
-const formatLocalISODate = (date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
-
-const parseISODate = (isoDate) => {
-    if (!isoDate || typeof isoDate !== 'string') return null;
-    const parts = isoDate.split('-').map(Number);
-    if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
-    const [year, month, day] = parts;
-    const parsed = new Date(year, month - 1, day);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-};
-
-const getStartOfWeekMonday = (inputDate) => {
-    const date = new Date(inputDate);
-    date.setHours(0, 0, 0, 0);
-    const day = date.getDay();
-    const mondayOffset = (day + 6) % 7;
-    date.setDate(date.getDate() - mondayOffset);
-    return date;
-};
-
-const addDays = (inputDate, days) => {
-    const next = new Date(inputDate);
-    next.setDate(next.getDate() + days);
-    return next;
-};
-
-const resolveBookingDate = (dateValue, fallbackDay) => {
-    if (typeof dateValue?.toDate === 'function') {
-        const date = dateValue.toDate();
-        if (date instanceof Date && !Number.isNaN(date.getTime())) {
-            return formatLocalISODate(date);
-        }
-    }
-
-    if (dateValue instanceof Date && !Number.isNaN(dateValue.getTime())) {
-        return formatLocalISODate(dateValue);
-    }
-
-    if (typeof dateValue === 'string') {
-        const isoParsed = parseISODate(dateValue);
-        if (isoParsed) return formatLocalISODate(isoParsed);
-
-        const nativeParsed = new Date(dateValue);
-        if (!Number.isNaN(nativeParsed.getTime())) {
-            return formatLocalISODate(nativeParsed);
-        }
-    }
-
-    if (typeof dateValue === 'number') {
-        const nativeParsed = new Date(dateValue);
-        if (!Number.isNaN(nativeParsed.getTime())) {
-            return formatLocalISODate(nativeParsed);
-        }
-    }
-
-    const fallback = new Date();
-    const parsedDay = Number.parseInt(String(fallbackDay ?? ''), 10);
-    if (!Number.isNaN(parsedDay) && parsedDay >= 1 && parsedDay <= 31) {
-        fallback.setDate(parsedDay);
-    }
-
-    return formatLocalISODate(fallback);
-};
-
-const getWeekMonthLabel = (week) => {
-    if (!week || week.length === 0) return '';
-
-    const firstDate = parseISODate(week[0].fullDate);
-    const lastDate = parseISODate(week[week.length - 1].fullDate);
-
-    if (!firstDate || !lastDate) return '';
-
-    const firstMonth = firstDate.toLocaleDateString('en-US', { month: 'long' });
-    const lastMonth = lastDate.toLocaleDateString('en-US', { month: 'long' });
-    const firstYear = firstDate.getFullYear();
-    const lastYear = lastDate.getFullYear();
-
-    if (firstMonth === lastMonth && firstYear === lastYear) {
-        return `${firstMonth} ${firstYear}`;
-    }
-
-    if (firstYear === lastYear) {
-        return `${firstMonth} - ${lastMonth} ${firstYear}`;
-    }
-
-    return `${firstMonth} ${firstYear} - ${lastMonth} ${lastYear}`;
-};
+const slots = generateTimeSlots();
 
 const Schedules = () => {
-    const today = useMemo(() => new Date(), []);
-    const todayIso = useMemo(() => formatLocalISODate(today), [today]);
+  const today = useMemo(() => new Date(), []);
 
-    const [view, setView] = useState('day');
-    const [activeDay, setActiveDay] = useState(todayIso);
-    const [rawBookings, setRawBookings] = useState([]);
-    const [serviceCategoryMap, setServiceCategoryMap] = useState({});
-    const [bookingModalOpen, setBookingModalOpen] = useState(false);
-    const [bookingPrefillContext, setBookingPrefillContext] = useState(null);
-    const [editingBooking, setEditingBooking] = useState(null);
-    const [viewBookingModalOpen, setViewBookingModalOpen] = useState(false);
-    const [selectedBooking, setSelectedBooking] = useState(null);
-    const [selectedCategory, setSelectedCategory] = useState('All');
-    const [rangeStart, setRangeStart] = useState('');
-    const [rangeEnd, setRangeEnd] = useState('');
-    const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeekMonday(today));
+  const [view, setView] = useState('month');
+  const [currentDate, setCurrentDate] = useState(today);
+  const [activeDay, setActiveDay] = useState(today);
+  const [bookings, setBookings] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
 
-    useEffect(() => {
-        const unsubscribe = BookingService.subscribeToBookings((bookings) => {
-            setRawBookings(bookings || []);
-        });
+  // Modal states
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
 
-        return () => {
-            if (unsubscribe) unsubscribe();
-        };
-    }, []);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [editingBooking, setEditingBooking] = useState(null);
+  const [prefillDate, setPrefillDate] = useState(null);
+  const [prefillTime, setPrefillTime] = useState(null);
 
-    useEffect(() => {
-        ServiceService.getServices()
-            .then((services) => {
-                const map = {};
-                (services || []).forEach((service) => {
-                    if (!service?.id) return;
-                    map[service.id] = service.category || 'Uncategorized';
-                });
-                setServiceCategoryMap(map);
-            })
-            .catch(console.error);
-    }, []);
+  // Subscribe to bookings
+  useEffect(() => {
+    const unsub = CalendarBookingService.subscribe((data) => setBookings(data || []));
+    return () => { if (unsub) unsub(); };
+  }, []);
 
-    const normalizedRange = useMemo(() => {
-        const start = parseISODate(rangeStart);
-        const end = parseISODate(rangeEnd);
+  // Load categories
+  useEffect(() => {
+    CategoryService.getCategories().then(setCategories).catch(console.error);
+  }, []);
 
-        if (start && end && start > end) {
-            return { start: end, end: start };
-        }
+  // Derived data
+  const filteredBookings = useMemo(() => {
+    if (selectedCategory === 'All') return bookings;
+    return bookings.filter((b) => (b.category || b.serviceCategory) === selectedCategory);
+  }, [bookings, selectedCategory]);
 
-        return { start, end };
-    }, [rangeStart, rangeEnd]);
+  const weekDays = useMemo(() => getWeekDays(startOfWeek(currentDate)), [currentDate]);
 
-    const minWeekStart = useMemo(() => {
-        if (!normalizedRange.start) return null;
-        return getStartOfWeekMonday(normalizedRange.start);
-    }, [normalizedRange.start]);
+  // Navigation label
+  const toolbarLabel = useMemo(() => {
+    if (view === 'month') return formatMonthYear(currentDate);
+    if (view === 'week') {
+      const ws = startOfWeek(currentDate);
+      const we = addDays(ws, 6);
+      return `${formatShortDate(ws)} – ${formatShortDate(we)}`;
+    }
+    return formatFullDate(activeDay instanceof Date ? activeDay : currentDate);
+  }, [view, currentDate, activeDay]);
 
-    const maxWeekStart = useMemo(() => {
-        if (!normalizedRange.end) return null;
-        return getStartOfWeekMonday(normalizedRange.end);
-    }, [normalizedRange.end]);
-
-    useEffect(() => {
-        if (minWeekStart && currentWeekStart < minWeekStart) {
-            setCurrentWeekStart(minWeekStart);
-            return;
-        }
-
-        if (maxWeekStart && currentWeekStart > maxWeekStart) {
-            setCurrentWeekStart(maxWeekStart);
-        }
-    }, [currentWeekStart, maxWeekStart, minWeekStart]);
-
-    const fullWeek = useMemo(() => {
-        return Array.from({ length: 7 }, (_, index) => {
-            const dayDate = addDays(currentWeekStart, index);
-            return {
-                label: dayDate.toLocaleDateString('en-US', { weekday: 'short' }),
-                dateNumber: String(dayDate.getDate()),
-                monthShort: dayDate.toLocaleDateString('en-US', { month: 'short' }),
-                fullDate: formatLocalISODate(dayDate)
-            };
-        });
-    }, [currentWeekStart]);
-
-    useEffect(() => {
-        if (fullWeek.some((day) => day.fullDate === activeDay)) return;
-        setActiveDay(fullWeek[0]?.fullDate || todayIso);
-    }, [activeDay, fullWeek, todayIso]);
-
-    const appointments = useMemo(() => {
-        return (rawBookings || []).map((booking) => {
-            const fullDate = resolveBookingDate(booking.date, booking.day);
-            const category = serviceCategoryMap[booking.serviceId] || booking.category || 'Uncategorized';
-            const startTime = booking.startTime || booking.time || '10:00';
-            const endTime = booking.endTime || booking.time || '11:00';
-
-            return {
-                id: booking.id,
-                time: startTime,
-                startTime,
-                endTime,
-                durationMinutes: booking.durationMinutes,
-                name: booking.clientName || booking.name,
-                room: booking.serviceTitle || booking.room,
-                day: fullDate,
-                fullDate,
-                category,
-                type: booking.type || 'normal',
-                staff: booking.staffName || booking.staff,
-                date: booking.date,
-                totalPrice: booking.totalPrice,
-                clientContact: booking.clientContact,
-                selectedAddons: booking.selectedAddons,
-                // Include all booking data for viewing/editing
-                ...booking
-            };
-        });
-    }, [rawBookings, serviceCategoryMap]);
-
-    const categoryOptions = useMemo(() => {
-        const categorySet = new Set();
-
-        Object.values(serviceCategoryMap).forEach((category) => {
-            if (category) categorySet.add(category);
-        });
-
-        appointments.forEach((appointment) => {
-            if (appointment.category) categorySet.add(appointment.category);
-        });
-
-        return ['All', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b))];
-    }, [appointments, serviceCategoryMap]);
-
-    const filteredAppointments = useMemo(() => {
-        return appointments.filter((appointment) => {
-            const inCategory = selectedCategory === 'All' || appointment.category === selectedCategory;
-            const inStartRange = !normalizedRange.start || appointment.fullDate >= formatLocalISODate(normalizedRange.start);
-            const inEndRange = !normalizedRange.end || appointment.fullDate <= formatLocalISODate(normalizedRange.end);
-            return inCategory && inStartRange && inEndRange;
-        });
-    }, [appointments, normalizedRange.end, normalizedRange.start, selectedCategory]);
-
-    const canGoPrev = useMemo(() => {
-        if (!minWeekStart) return true;
-        return currentWeekStart > minWeekStart;
-    }, [currentWeekStart, minWeekStart]);
-
-    const canGoNext = useMemo(() => {
-        if (!maxWeekStart) return true;
-        return currentWeekStart < maxWeekStart;
-    }, [currentWeekStart, maxWeekStart]);
-
-    const monthLabel = useMemo(() => getWeekMonthLabel(fullWeek), [fullWeek]);
-
-    const staffColors = {
-        'Dr. Adams': { bg: 'bg-blue-500', border: 'border-blue-500/20', text: '#3b82f6' },
-        'Nurse Joy': { bg: 'bg-emerald-500', border: 'border-emerald-500/20', text: '#10b981' },
-        'Dr. Smith': { bg: 'bg-purple-500', border: 'border-purple-500/20', text: '#a855f7' },
-        'Jordan Smith': { bg: 'bg-indigo-500', border: 'border-indigo-500/20', text: '#6366f1' },
-        'Elena Rodriguez': { bg: 'bg-cyan-500', border: 'border-cyan-500/20', text: '#06b6d4' },
-        'Marcus Thompson': { bg: 'bg-pink-500', border: 'border-pink-500/20', text: '#ec4899' },
-        'Sarah Chen': { bg: 'bg-lime-500', border: 'border-lime-500/20', text: '#84cc16' }
-    };
-
-    const hours = Array.from({ length: 29 }, (_, index) => {
-        const totalMinutes = (7 * 60) + (index * 30);
-        const hour = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
-        const minute = String(totalMinutes % 60).padStart(2, '0');
-        return `${hour}:${minute}`;
+  const handlePrev = useCallback(() => {
+    setCurrentDate((d) => {
+      const nd = new Date(d);
+      if (view === 'month') { nd.setMonth(nd.getMonth() - 1); return nd; }
+      if (view === 'week') return addDays(nd, -7);
+      return addDays(nd, -1);
     });
+    if (view === 'day') setActiveDay((d) => addDays(d instanceof Date ? d : new Date(), -1));
+  }, [view]);
 
-    const handlePrevWeek = () => {
-        if (!canGoPrev) return;
-        setCurrentWeekStart((prev) => addDays(prev, -7));
-        const parsedActiveDay = parseISODate(activeDay);
-        if (parsedActiveDay) {
-            setActiveDay(formatLocalISODate(addDays(parsedActiveDay, -7)));
-        }
-    };
+  const handleNext = useCallback(() => {
+    setCurrentDate((d) => {
+      const nd = new Date(d);
+      if (view === 'month') { nd.setMonth(nd.getMonth() + 1); return nd; }
+      if (view === 'week') return addDays(nd, 7);
+      return addDays(nd, 1);
+    });
+    if (view === 'day') setActiveDay((d) => addDays(d instanceof Date ? d : new Date(), 1));
+  }, [view]);
 
-    const handleNextWeek = () => {
-        if (!canGoNext) return;
-        setCurrentWeekStart((prev) => addDays(prev, 7));
-        const parsedActiveDay = parseISODate(activeDay);
-        if (parsedActiveDay) {
-            setActiveDay(formatLocalISODate(addDays(parsedActiveDay, 7)));
-        }
-    };
+  const handleDayClick = useCallback((day) => {
+    setActiveDay(day);
+    setCurrentDate(day);
+    setView('day');
+  }, []);
 
-    const handleOpenBookingModal = () => {
-        setBookingPrefillContext(null);
-        setBookingModalOpen(true);
-    };
+  const handleSlotClick = useCallback((isoDate, time) => {
+    setPrefillDate(isoDate);
+    setPrefillTime(time);
+    setEditingBooking(null);
+    setBookingModalOpen(true);
+  }, []);
 
-    const handleSlotClick = (fullDate, hour) => {
-        const parsedDate = parseISODate(fullDate);
-        if (!parsedDate) {
-            handleOpenBookingModal();
-            return;
-        }
+  const handleBookingClick = useCallback((booking) => {
+    setSelectedBooking(booking);
+    setDrawerOpen(true);
+  }, []);
 
-        const [hourValue = '09', minuteValue = '00'] = String(hour || '09:00').split(':');
+  const handleAdd = useCallback(() => {
+    setPrefillDate(null);
+    setPrefillTime(null);
+    setEditingBooking(null);
+    setBookingModalOpen(true);
+  }, []);
 
-        setBookingPrefillContext({
-            month: String(parsedDate.getMonth() + 1).padStart(2, '0'),
-            day: String(parsedDate.getDate()).padStart(2, '0'),
-            year: String(parsedDate.getFullYear()),
-            hour: String(hourValue).padStart(2, '0'),
-            minute: String(minuteValue).padStart(2, '0')
-        });
-        setBookingModalOpen(true);
-    };
+  const handleSaveBooking = useCallback(async (payload, id) => {
+    if (id) {
+      await CalendarBookingService.update(id, payload);
+    } else {
+      await CalendarBookingService.create(payload);
+    }
+  }, []);
 
-    const handleDateRangeStartChange = (event) => {
-        setRangeStart(event.target.value);
-    };
+  const handleMarkPendingEdit = useCallback(async (booking) => {
+    await CalendarBookingService.markPendingEdit(booking.id);
+    await CalendarTaskService.createPendingEditTask(booking);
+    setDrawerOpen(false);
+  }, []);
 
-    const handleDateRangeEndChange = (event) => {
-        setRangeEnd(event.target.value);
-    };
+  const handleComplete = useCallback(async (booking) => {
+    await CalendarBookingService.complete(booking.id);
+    setDrawerOpen(false);
+  }, []);
 
-    const handleModalClose = () => {
-        setBookingModalOpen(false);
-        setBookingPrefillContext(null);
-        setEditingBooking(null);
-    };
+  const handleOpenReschedule = useCallback((booking) => {
+    setSelectedBooking(booking);
+    setRescheduleModalOpen(true);
+  }, []);
 
-    const handleAppointmentClick = (appointment) => {
-        setSelectedBooking(appointment);
-        setViewBookingModalOpen(true);
-    };
+  const handleReschedule = useCallback(async (data) => {
+    if (!selectedBooking) return;
+    await CalendarBookingService.reschedule(selectedBooking.id, data);
+    setRescheduleModalOpen(false);
+    setDrawerOpen(false);
+  }, [selectedBooking]);
 
-    const handleEditBooking = (booking) => {
-        setEditingBooking(booking);
-        setBookingModalOpen(true);
-    };
+  const handleOpenCancel = useCallback((booking) => {
+    setSelectedBooking(booking);
+    setCancelModalOpen(true);
+  }, []);
 
-    const handleBookingDeleted = () => {
-        // Bookings will automatically update via the subscription
-    };
+  const handleCancel = useCallback(async (reason) => {
+    if (!selectedBooking) return;
+    await CalendarBookingService.cancel(selectedBooking.id, reason);
+    setCancelModalOpen(false);
+    setDrawerOpen(false);
+  }, [selectedBooking]);
 
-    return (
-        <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden">
-            <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 relative z-20">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={handlePrevWeek}
-                            disabled={!canGoPrev}
-                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
-                            aria-label="Previous week"
-                        >
-                            <ChevronLeft size={14} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleNextWeek}
-                            disabled={!canGoNext}
-                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
-                            aria-label="Next week"
-                        >
-                            <ChevronRight size={14} />
-                        </button>
+  const handleEdit = useCallback((booking) => {
+    setEditingBooking(booking);
+    setPrefillDate(null);
+    setPrefillTime(null);
+    setDrawerOpen(false);
+    setBookingModalOpen(true);
+  }, []);
 
-                        <div className="ml-1">
-                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#b1b1b1]">Week View</p>
-                            <p className="text-sm font-black tracking-tight text-[#2f3035] dark:text-white">{monthLabel}</p>
-                        </div>
-                    </div>
+  const activeDayIso = activeDay instanceof Date ? formatLocalISO(activeDay) : String(activeDay || '');
 
-                    <div className="flex items-center gap-2">
-                        <div className="flex bg-[#f4f2f4] dark:bg-[#111] p-1 rounded-xl border border-[#f4f2f4] dark:border-white/10 shrink-0">
-                            <button
-                                onClick={() => setView('day')}
-                                className={clsx('p-1.5 rounded-lg transition-all', view === 'day' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
-                            >
-                                <LayoutList size={14} />
-                            </button>
-                            <button
-                                onClick={() => setView('week')}
-                                className={clsx('p-1.5 rounded-lg transition-all', view === 'week' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
-                            >
-                                <LayoutDashboard size={14} />
-                            </button>
-                        </div>
+  return (
+    <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden">
+      <CalendarToolbar
+        view={view}
+        onViewChange={setView}
+        label={toolbarLabel}
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onAdd={handleAdd}
+        selectedCategory={selectedCategory}
+        categories={categories}
+        onCategoryChange={setSelectedCategory}
+      />
 
-                        <FilterDropdown
-                            activeFilter={selectedCategory}
-                            onSelect={setSelectedCategory}
-                            align="right"
-                            options={categoryOptions}
-                        />
-
-                        <button
-                            onClick={handleOpenBookingModal}
-                            className="h-9 w-9 bg-[#F26389] text-white rounded-xl flex items-center justify-center shadow-lg shadow-[#F26389]/20 shrink-0"
-                        >
-                            <Plus size={14} strokeWidth={3} />
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[#b1b1b1]">Date Range</label>
-                    <input
-                        type="date"
-                        value={rangeStart}
-                        onChange={handleDateRangeStartChange}
-                        className="h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
-                    />
-                    <span className="text-[#b1b1b1] text-xs font-black">to</span>
-                    <input
-                        type="date"
-                        value={rangeEnd}
-                        onChange={handleDateRangeEndChange}
-                        className="h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
-                    />
-                    {(rangeStart || rangeEnd) && (
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setRangeStart('');
-                                setRangeEnd('');
-                            }}
-                            className="h-9 px-3 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] hover:text-[#F26389] hover:border-[#F26389] transition-all"
-                        >
-                            Clear
-                        </button>
-                    )}
-                </div>
-            </header>
-
-            <div className="flex-1 min-h-0 w-full max-w-full overflow-hidden relative">
-                <AnimatePresence mode="wait">
-                    {view === 'day' ? (
-                        <DailyListView
-                            key="day"
-                            activeDay={activeDay}
-                            setActiveDay={setActiveDay}
-                            fullWeek={fullWeek}
-                            hours={hours}
-                            appointments={filteredAppointments}
-                            staffColors={staffColors}
-                            onSlotClick={handleSlotClick}
-                            onAppointmentClick={handleAppointmentClick}
-                        />
-                    ) : (
-                        <WeeklyGridView
-                            key="week"
-                            activeDay={activeDay}
-                            fullWeek={fullWeek}
-                            hours={hours}
-                            appointments={filteredAppointments}
-                            staffColors={staffColors}
-                            onSlotClick={handleSlotClick}
-                            onAppointmentClick={handleAppointmentClick}
-                        />
-                    )}
-                </AnimatePresence>
-            </div>
-
-            <AddBookingModal
-                isOpen={bookingModalOpen}
-                onClose={handleModalClose}
-                onSuccess={handleModalClose}
-                prefillContext={bookingPrefillContext}
-                editingBooking={editingBooking}
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <AnimatePresence mode="wait">
+          {view === 'month' && (
+            <MonthView
+              key="month"
+              year={currentDate.getFullYear()}
+              month={currentDate.getMonth()}
+              bookings={filteredBookings}
+              categories={categories}
+              activeDay={activeDay}
+              onDayClick={handleDayClick}
             />
-
-            <ViewBookingModal
-                isOpen={viewBookingModalOpen}
-                onClose={() => setViewBookingModalOpen(false)}
-                booking={selectedBooking}
-                onEdit={handleEditBooking}
-                onDeleted={handleBookingDeleted}
+          )}
+          {view === 'week' && (
+            <WeekView
+              key="week"
+              weekDays={weekDays}
+              slots={slots}
+              bookings={filteredBookings}
+              categories={categories}
+              activeDay={activeDayIso}
+              onSlotClick={handleSlotClick}
+              onBookingClick={handleBookingClick}
             />
-        </div>
-    );
+          )}
+          {view === 'day' && (
+            <DayView
+              key="day"
+              date={activeDay instanceof Date ? activeDay : currentDate}
+              slots={slots}
+              bookings={filteredBookings}
+              categories={categories}
+              onSlotClick={handleSlotClick}
+              onBookingClick={handleBookingClick}
+            />
+          )}
+        </AnimatePresence>
+      </div>
+
+      <BookingModal
+        isOpen={bookingModalOpen}
+        onClose={() => { setBookingModalOpen(false); setEditingBooking(null); }}
+        onSave={handleSaveBooking}
+        prefillDate={prefillDate}
+        prefillTime={prefillTime}
+        editingBooking={editingBooking}
+        bookings={bookings}
+      />
+
+      <BookingDetailsDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        booking={selectedBooking}
+        onEdit={handleEdit}
+        onReschedule={handleOpenReschedule}
+        onCancel={handleOpenCancel}
+        onMarkPendingEdit={handleMarkPendingEdit}
+        onComplete={handleComplete}
+      />
+
+      <RescheduleModal
+        isOpen={rescheduleModalOpen}
+        onClose={() => setRescheduleModalOpen(false)}
+        onReschedule={handleReschedule}
+        booking={selectedBooking}
+      />
+
+      <CancelModal
+        isOpen={cancelModalOpen}
+        onClose={() => setCancelModalOpen(false)}
+        onCancel={handleCancel}
+        booking={selectedBooking}
+      />
+    </div>
+  );
 };
 
 export default Schedules;
