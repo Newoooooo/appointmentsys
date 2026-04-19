@@ -381,6 +381,8 @@ export const BookingService = {
             return true;
         }
 
+        const INACTIVE_STATUSES = ['Cancelled', 'cancelled', 'completed', 'Completed'];
+
         const existingBookings = await queryCollection('bookings', [
             { field: 'date', operator: '==', value: date },
             { field: 'staffId', operator: '==', value: staffId }
@@ -388,6 +390,7 @@ export const BookingService = {
 
         return (existingBookings || []).some((booking) => {
             if (bookingId && booking.id === bookingId) return false;
+            if (INACTIVE_STATUSES.includes(booking.status)) return false;
 
             const bookingStart = toMinutes(booking.startTime || booking.time);
             const bookingEnd = toMinutes(booking.endTime);
@@ -421,6 +424,7 @@ export const BookingService = {
             const endTime = toTimeLabel(computedEndMinutes);
             const durationMinutes = Math.max(15, computedEndMinutes - startMinutes);
 
+            // Overlap is warn-only — log but do not block the save
             const hasConflict = await this.hasBookingConflict({
                 date: bookingData.date,
                 staffId: bookingData.staffId,
@@ -429,7 +433,7 @@ export const BookingService = {
             });
 
             if (hasConflict) {
-                throw new Error('Booking time overlaps with an existing booking for this staff member.');
+                console.warn('Booking overlap detected for staff on this date/time — saving anyway (warn-only).');
             }
 
             const booking = await addDocument('bookings', {
@@ -521,6 +525,79 @@ export const BookingService = {
             return { success: true };
         } catch (error) {
             console.error('Error deleting booking:', error);
+            throw error;
+        }
+    },
+
+    async cancelBooking(bookingId, reason = '') {
+        try {
+            await updateDocument('bookings', bookingId, {
+                status: 'Cancelled',
+                cancellationReason: reason,
+                cancelledAt: new Date().toISOString(),
+            });
+            return { success: true };
+        } catch (error) {
+            console.error('Error cancelling booking:', error);
+            throw error;
+        }
+    },
+
+    async markPendingEdit(bookingId, reason = '') {
+        try {
+            await updateDocument('bookings', bookingId, {
+                status: 'pending_edit',
+                pendingEditReason: reason,
+                pendingEditAt: new Date().toISOString(),
+            });
+            return { success: true };
+        } catch (error) {
+            console.error('Error marking booking as pending edit:', error);
+            throw error;
+        }
+    },
+
+    async extendBooking(bookingId, additionalMinutes) {
+        try {
+            const all = await getCollection('bookings');
+            const booking = all.find((b) => b.id === bookingId);
+            if (!booking) throw new Error('Booking not found');
+            const endMins = toMinutes(booking.endTime);
+            if (endMins === null) throw new Error('Invalid booking end time');
+            const newEndMins = Math.min(endMins + Number(additionalMinutes), 22 * 60);
+            const newEndTime = toTimeLabel(newEndMins);
+            const startMins = toMinutes(booking.startTime || booking.time);
+            const newDuration = startMins !== null ? Math.max(15, newEndMins - startMins) : booking.durationMinutes;
+            await updateDocument('bookings', bookingId, {
+                endTime: newEndTime,
+                durationMinutes: newDuration,
+            });
+            return { success: true, endTime: newEndTime, durationMinutes: newDuration };
+        } catch (error) {
+            console.error('Error extending booking:', error);
+            throw error;
+        }
+    },
+
+    async rescheduleBooking(bookingId, { newDate, newStartTime, newEndTime, reason = '' }) {
+        try {
+            const startMins = toMinutes(newStartTime);
+            const endMins = toMinutes(newEndTime);
+            const durationMinutes = startMins !== null && endMins !== null ? Math.max(15, endMins - startMins) : null;
+            const patch = {
+                date: newDate,
+                startTime: newStartTime,
+                time: newStartTime,
+                endTime: newEndTime,
+                status: 'rescheduled',
+                rescheduleReason: reason,
+                rescheduledAt: new Date().toISOString(),
+            };
+            if (durationMinutes !== null) patch.durationMinutes = durationMinutes;
+            await updateDocument('bookings', bookingId, patch);
+            return { success: true };
+        } catch (error) {
+            console.error('Error rescheduling booking:', error);
             throw error;
         }
     },
