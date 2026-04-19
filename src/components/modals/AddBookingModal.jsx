@@ -1,33 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, X } from 'lucide-react';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/style.css';
 import { ServiceService, StaffService, BookingService, CategoryService } from '../../api/services';
 
-const HOUR_OPTIONS = Array.from({ length: 15 }, (_, index) => {
-    const hour = index + 7;
+const HOUR_OPTIONS = Array.from({ length: 17 }, (_, index) => {
+    const hour = index + 6;
     return String(hour).padStart(2, '0');
 });
 
-const MINUTE_OPTIONS = ['00', '15', '30', '45'];
+const MINUTE_OPTIONS = ['00', '30'];
 const BOOKING_SOURCES = ['Walk-in', 'Messenger'];
-
-const MONTH_OPTIONS = [
-    { value: '01', label: 'Jan' },
-    { value: '02', label: 'Feb' },
-    { value: '03', label: 'Mar' },
-    { value: '04', label: 'Apr' },
-    { value: '05', label: 'May' },
-    { value: '06', label: 'Jun' },
-    { value: '07', label: 'Jul' },
-    { value: '08', label: 'Aug' },
-    { value: '09', label: 'Sep' },
-    { value: '10', label: 'Oct' },
-    { value: '11', label: 'Nov' },
-    { value: '12', label: 'Dec' }
-];
-
-const DAY_OPTIONS = Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, '0'));
-const YEAR_OPTIONS = Array.from({ length: 5 }, (_, index) => String(new Date().getFullYear() + index));
 
 const getNearestAllowedTime = (date = new Date()) => {
     let hour = date.getHours();
@@ -42,12 +26,12 @@ const getNearestAllowedTime = (date = new Date()) => {
         hour += 1;
     }
 
-    if (hour < 7) {
-        hour = 7;
+    if (hour < 6) {
+        hour = 6;
         minutes = 0;
     }
-    if (hour > 21) {
-        hour = 21;
+    if (hour > 22) {
+        hour = 22;
         minutes = 0;
     }
 
@@ -79,6 +63,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
         staffId: '',
         selectedAddons: {}
     });
+    const [selectedDate, setSelectedDate] = useState(now);
     const [customAddons, setCustomAddons] = useState([]);
     const [categories, setCategories] = useState([]);
     const [services, setServices] = useState([]);
@@ -115,7 +100,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
     useEffect(() => {
         if (!isOpen || !editingBooking) return;
 
-        const bookingDate = editingBooking.date ? new Date(editingBooking.date) : new Date();
+        const bookingDate = editingBooking.date ? new Date(`${editingBooking.date}T00:00:00`) : new Date();
         const [startHour = '09', startMinute = '00'] = (editingBooking.startTime || editingBooking.time || '09:00').split(':');
         const [endHour = '10', endMinute = '00'] = (editingBooking.endTime || '10:00').split(':');
 
@@ -123,6 +108,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
         const service = services.find(s => s.id === editingBooking.serviceId);
         const category = categories.find(c => c.name === service?.category);
 
+        setSelectedDate(bookingDate);
         setFormData({
             clientName: editingBooking.clientName || '',
             clientContact: editingBooking.clientContact || '',
@@ -150,6 +136,12 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
 
     useEffect(() => {
         if (!isOpen || !prefillContext) return;
+
+        const prefillDate = prefillContext.year && prefillContext.month && prefillContext.day
+            ? new Date(`${prefillContext.year}-${prefillContext.month}-${prefillContext.day}T00:00:00`)
+            : null;
+
+        if (prefillDate) setSelectedDate(prefillDate);
 
         setFormData(prev => ({
             ...prev,
@@ -238,6 +230,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
         const today = new Date();
         const { hour, minute } = getNearestAllowedTime(today);
 
+        setSelectedDate(today);
         setFormData(prev => ({
             ...prev,
             month: String(today.getMonth() + 1).padStart(2, '0'),
@@ -245,6 +238,17 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
             year: String(today.getFullYear()),
             hour,
             minute
+        }));
+    };
+
+    const handleDateSelect = (date) => {
+        if (!date) return;
+        setSelectedDate(date);
+        setFormData(prev => ({
+            ...prev,
+            month: String(date.getMonth() + 1).padStart(2, '0'),
+            day: String(date.getDate()).padStart(2, '0'),
+            year: String(date.getFullYear())
         }));
     };
 
@@ -347,11 +351,13 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
             }
 
             const resetDate = new Date();
+            setSelectedDate(resetDate);
             setFormData({
                 clientName: '',
                 clientContact: '',
                 clientEmail: '',
                 bookingSource: 'Walk-in',
+                categoryId: '',
                 serviceId: '',
                 month: String(resetDate.getMonth() + 1).padStart(2, '0'),
                 day: String(resetDate.getDate()).padStart(2, '0'),
@@ -523,38 +529,20 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                                             Today
                                         </button>
                                     </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <select
-                                            name="month"
-                                            value={formData.month}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {MONTH_OPTIONS.map(option => (
-                                                <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            name="day"
-                                            value={formData.day}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {DAY_OPTIONS.map(option => (
-                                                <option key={option} value={option}>{option}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            name="year"
-                                            value={formData.year}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {YEAR_OPTIONS.map(option => (
-                                                <option key={option} value={option}>{option}</option>
-                                            ))}
-                                        </select>
+                                    <div className="border border-gray-200 dark:border-white/10 rounded-xl overflow-hidden bg-white dark:bg-[#0c0c0c] p-2">
+                                        <DayPicker
+                                            mode="single"
+                                            selected={selectedDate}
+                                            onSelect={handleDateSelect}
+                                            showOutsideDays
+                                            className="!font-sans"
+                                        />
                                     </div>
+                                    {selectedDate && (
+                                        <p className="text-[11px] font-bold text-[#F26389] mt-1 text-center">
+                                            {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>

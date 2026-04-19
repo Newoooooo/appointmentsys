@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Edit2, Trash2, Calendar, Clock, User, Package, DollarSign } from 'lucide-react';
+import { X, Edit2, Trash2, Calendar, Clock, User, Package, DollarSign, TimerReset } from 'lucide-react';
 import { BookingService } from '../../api/services';
 
 export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }) => {
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isExtending, setIsExtending] = useState(false);
     const [error, setError] = useState('');
 
     const handleDelete = async () => {
@@ -23,6 +24,33 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
             setError(err.message || 'Failed to cancel booking');
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleExtend = async () => {
+        if (!booking?.endTime) {
+            setError('No end time found for this booking.');
+            return;
+        }
+        setIsExtending(true);
+        setError('');
+        try {
+            const [endHour, endMinute] = booking.endTime.split(':').map(Number);
+            const totalMinutes = endHour * 60 + endMinute + 30;
+            const newEndHour = Math.floor(totalMinutes / 60);
+            const newEndMinute = totalMinutes % 60;
+            if (newEndHour > 22) {
+                setError('Cannot extend beyond 10:00 PM.');
+                return;
+            }
+            const newEndTime = `${String(newEndHour).padStart(2, '0')}:${String(newEndMinute).padStart(2, '0')}`;
+            await BookingService.updateBooking(booking.id, { endTime: newEndTime });
+            onDeleted?.(); // triggers parent refresh
+            onClose();
+        } catch (err) {
+            setError(err.message || 'Failed to extend booking');
+        } finally {
+            setIsExtending(false);
         }
     };
 
@@ -184,24 +212,34 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-3 mt-6">
+                        <div className="flex flex-col gap-3 mt-6">
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleDelete}
+                                    disabled={isDeleting}
+                                    className="flex-1 px-4 py-2 border border-red-500 text-red-600 dark:text-red-400 rounded-lg font-bold uppercase text-sm hover:bg-red-500/10 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={16} />
+                                    {isDeleting ? 'Cancelling...' : 'Cancel Booking'}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        onEdit?.(booking);
+                                        onClose();
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-[#F26389] text-white rounded-lg font-bold uppercase text-sm hover:bg-[#BF637C] transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Edit2 size={16} />
+                                    Edit Booking
+                                </button>
+                            </div>
                             <button
-                                onClick={handleDelete}
-                                disabled={isDeleting}
-                                className="flex-1 px-4 py-2 border border-red-500 text-red-600 dark:text-red-400 rounded-lg font-bold uppercase text-sm hover:bg-red-500/10 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                                onClick={handleExtend}
+                                disabled={isExtending}
+                                className="w-full px-4 py-2 border border-[#F26389]/40 text-[#F26389] rounded-lg font-bold uppercase text-sm hover:bg-[#F26389]/10 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                             >
-                                <Trash2 size={16} />
-                                {isDeleting ? 'Cancelling...' : 'Cancel Booking'}
-                            </button>
-                            <button
-                                onClick={() => {
-                                    onEdit?.(booking);
-                                    onClose();
-                                }}
-                                className="flex-1 px-4 py-2 bg-[#F26389] text-white rounded-lg font-bold uppercase text-sm hover:bg-[#BF637C] transition-colors flex items-center justify-center gap-2"
-                            >
-                                <Edit2 size={16} />
-                                Edit Booking
+                                <TimerReset size={16} />
+                                {isExtending ? 'Extending...' : 'Extend Booking (+30 min)'}
                             </button>
                         </div>
                     </motion.div>

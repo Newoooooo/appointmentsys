@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { User, Settings, HelpCircle, LogOut, ChevronRight } from 'lucide-react';
 import DropdownMenu from "../dropdowns/DropdownMenu.jsx";
+import { useAuth } from '../../contexts/AuthContext.jsx';
 
 const MenuLink = memo(({ to, icon: Icon, label }) => (
     <Link
@@ -18,10 +19,17 @@ const MenuLink = memo(({ to, icon: Icon, label }) => (
 ));
 
 const UserProfile = () => {
-    const handleLogout = useCallback((e) => {
+    const { user, userProfile, signOut } = useAuth();
+
+    const handleLogout = useCallback(async (e) => {
         e.stopPropagation();
-        console.log("Logging out...");
-    }, []);
+        await signOut();
+    }, [signOut]);
+
+    const displayName = user?.displayName || userProfile?.displayName || 'User';
+    const email = user?.email || '';
+    const photoURL = user?.photoURL;
+    const role = userProfile?.role === 'admin' ? 'Administrator' : userProfile?.role === 'staff' ? 'Staff' : '';
 
     return (
         <DropdownMenu
@@ -31,37 +39,44 @@ const UserProfile = () => {
             trigger={
                 <div className="flex items-center gap-3 p-1 group cursor-pointer">
                     <div className="hidden md:flex flex-col items-end leading-tight">
-                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Sarah Jenkins</span>
-                        <span className="text-[11px] text-slate-400 font-medium">Administrator</span>
+                        <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{displayName}</span>
+                        {role && <span className="text-[11px] text-slate-400 font-medium">{role}</span>}
                     </div>
                     <motion.div
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         className="w-10 h-10 overflow-hidden border border-slate-200 dark:border-white/10 rounded-xl shadow-sm bg-white shrink-0"
                     >
-                        <img
-                            src="https://i.pravatar.cc/150?u=sarah"
-                            className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                            alt="Profile"
-                        />
+                        {photoURL ? (
+                            <img
+                                src={photoURL}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
+                                alt="Profile"
+                                referrerPolicy="no-referrer"
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-[#F26389]/10 text-[#F26389] font-black text-lg">
+                                {displayName.charAt(0).toUpperCase()}
+                            </div>
+                        )}
                     </motion.div>
                 </div>
             }
         >
-            {/* Minimal Header */}
+            {/* Header */}
             <div className="px-5 py-5 border-b border-slate-100 dark:border-white/5">
                 <p className="text-xs font-medium text-slate-400 mb-0.5">Signed in as</p>
-                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">sarah.jenkins@bookly.io</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{email}</p>
             </div>
 
             {/* Links Section */}
             <div className="p-2 space-y-0.5">
-                <MenuLink to="/profile" icon={User} label="My Profile" />
+                <MenuLink to="/settings" icon={User} label="My Profile" />
                 <MenuLink to="/settings" icon={Settings} label="Preferences" />
-                <MenuLink to="/help" icon={HelpCircle} label="Help & Support" />
+                <MenuLink to="/integrations" icon={HelpCircle} label="Help & Support" />
             </div>
 
-            {/* Simple, Clean Footer */}
+            {/* Footer */}
             <div className="p-2 mt-1 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/2">
                 <button
                     onClick={handleLogout}
