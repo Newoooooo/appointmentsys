@@ -141,11 +141,13 @@ const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, staffColors,
                                                 occupied && 'bg-[#F26389]/5'
                                             )}
                                         >
-                                            {startingAppts.length > 0 ? (
-                                                <div
-                                                    className="absolute left-1.5 right-1.5 top-1.5 z-10 flex gap-0.5"
-                                                    style={{ height: `calc(${Math.max(...startingAppts.map((a) => a.slotSpan))} * 3.5rem - 0.5rem)` }}
-                                                >
+                                            {startingAppts.length > 0 ? (() => {
+                                                const maxSpan = Math.max(...startingAppts.map((a) => a.slotSpan));
+                                                return (
+                                                    <div
+                                                        className="absolute left-1.5 right-1.5 top-1.5 z-10 flex gap-0.5"
+                                                        style={{ height: `calc(${maxSpan} * 3.5rem - 0.5rem)` }}
+                                                    >
                                                     {startingAppts.map(({ appointment: appt, slotSpan }, idx) => (
                                                         <div
                                                             key={appt.id || idx}
@@ -170,7 +172,8 @@ const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, staffColors,
                                                         </div>
                                                     ))}
                                                 </div>
-                                            ) : (
+                                                );
+                                            })() : (
                                                 <div className="w-full h-full flex items-center justify-center">
                                                     <Plus size={10} className="text-[#767676] dark:text-[#a0a0a0] opacity-20" />
                                                 </div>

@@ -48,26 +48,29 @@ export const TimelineSlot = ({
                     )}
                 />
 
-                {hasStarts ? (
-                    <div
-                        className="absolute left-8 right-0 top-1 z-10 flex gap-1"
-                        style={{ height: `calc(${Math.max(...appointments.map((a) => a.slotSpan))} * 3.5rem - 0.25rem)` }}
-                    >
-                        {appointments.map(({ appointment, slotSpan }, idx) => (
-                            <div
-                                key={appointment.id || idx}
-                                className="flex-1 min-w-0"
-                                style={{ height: `calc(${slotSpan} * 3.5rem - 0.25rem)` }}
-                            >
-                                <AppointmentCard
-                                    appt={appointment}
-                                    staffColor={staffColors?.[appointment.staff]}
-                                    onClick={onAppointmentClick}
-                                />
-                            </div>
-                        ))}
-                    </div>
-                ) : isOccupied ? (
+                {hasStarts ? (() => {
+                    const maxSpan = Math.max(...appointments.map((a) => a.slotSpan));
+                    return (
+                        <div
+                            className="absolute left-8 right-0 top-1 z-10 flex gap-1"
+                            style={{ height: `calc(${maxSpan} * 3.5rem - 0.25rem)` }}
+                        >
+                            {appointments.map(({ appointment, slotSpan }, idx) => (
+                                <div
+                                    key={appointment.id || idx}
+                                    className="flex-1 min-w-0"
+                                    style={{ height: `calc(${slotSpan} * 3.5rem - 0.25rem)` }}
+                                >
+                                    <AppointmentCard
+                                        appt={appointment}
+                                        staffColor={staffColors?.[appointment.staff]}
+                                        onClick={onAppointmentClick}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                    );
+                })() : isOccupied ? (
                     <div className="h-full" />
                 ) : (
                     <button

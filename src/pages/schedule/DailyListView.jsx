@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { DaySelector } from './DaySelector.jsx';
 import { TimelineSlot } from './TimeLineSlot.jsx';
@@ -32,36 +32,48 @@ const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments,
     const nowTopPx = ((nowMinutes - DAY_START_MINUTES) / SLOT_MINUTES) * SLOT_HEIGHT_PX;
     const showNowLine = nowMinutes >= DAY_START_MINUTES && nowMinutes <= DAY_START_MINUTES + hours.length * SLOT_MINUTES;
 
+    // Build a lookup: slotMinutes → [ {appointment, slotSpan} ]
+    const slotAppointmentsMap = useMemo(() => {
+        const map = new Map();
+        appointments.forEach((item) => {
+            if (item.fullDate !== activeDay) return;
+            const startMinutes = toMinutes(item.startTime || item.time);
+            if (startMinutes === null) return;
+            const endMinutes = toMinutes(item.endTime);
+            const resolvedEnd = endMinutes ?? (startMinutes + (Number(item.durationMinutes) || 60));
+            const slotSpan = Math.max(1, Math.ceil((resolvedEnd - startMinutes) / SLOT_MINUTES));
+            if (!map.has(startMinutes)) map.set(startMinutes, []);
+            map.get(startMinutes).push({ appointment: item, slotSpan });
+        });
+        return map;
+    }, [appointments, activeDay]);
+
+    // Build a set of occupied minute values for quick lookup
+    const occupiedMinutesSet = useMemo(() => {
+        const set = new Set();
+        appointments.forEach((item) => {
+            if (item.fullDate !== activeDay) return;
+            const start = toMinutes(item.startTime || item.time);
+            const end = toMinutes(item.endTime);
+            if (start === null) return;
+            const resolvedEnd = end ?? (start + (Number(item.durationMinutes) || 60));
+            for (let m = start; m < resolvedEnd; m += SLOT_MINUTES) {
+                set.add(m);
+            }
+        });
+        return set;
+    }, [appointments, activeDay]);
+
     const getAppointmentsStartingAtSlot = (hourValue) => {
         const slotMinutes = toMinutes(hourValue);
         if (slotMinutes === null) return [];
-
-        return appointments
-            .filter((item) => {
-                if (item.fullDate !== activeDay) return false;
-                const start = toMinutes(item.startTime || item.time);
-                return start === slotMinutes;
-            })
-            .map((item) => {
-                const startMinutes = toMinutes(item.startTime || item.time);
-                const endMinutes = toMinutes(item.endTime);
-                const resolvedEnd = endMinutes ?? (startMinutes + (Number(item.durationMinutes) || 60));
-                const slotSpan = Math.max(1, Math.ceil((resolvedEnd - startMinutes) / SLOT_MINUTES));
-                return { appointment: item, slotSpan };
-            });
+        return slotAppointmentsMap.get(slotMinutes) || [];
     };
 
     const isSlotOccupied = (hourValue) => {
         const slotMinutes = toMinutes(hourValue);
         if (slotMinutes === null) return false;
-        return appointments.some((item) => {
-            if (item.fullDate !== activeDay) return false;
-            const start = toMinutes(item.startTime || item.time);
-            const end = toMinutes(item.endTime);
-            if (start === null) return false;
-            const resolvedEnd = end ?? (start + (Number(item.durationMinutes) || 60));
-            return slotMinutes >= start && slotMinutes < resolvedEnd;
-        });
+        return occupiedMinutesSet.has(slotMinutes);
     };
 
     return (

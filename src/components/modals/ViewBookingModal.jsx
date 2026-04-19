@@ -56,15 +56,17 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
 
         try {
             const currentEnd = activeBooking.endTime;
-            const currentEndMins = toMinutes(currentEnd) ?? (toMinutes(activeBooking.startTime || activeBooking.time) + (activeBooking.durationMinutes || 60));
-            const newEndMins = currentEndMins + minutesToAdd;
+            const startMins = toMinutes(activeBooking.startTime || activeBooking.time);
+            const currentEndMins = toMinutes(currentEnd) ?? (startMins !== null ? startMins + (activeBooking.durationMinutes || 60) : null);
+            const newEndMins = (currentEndMins ?? 0) + minutesToAdd;
             const newEndTime = toTimeLabel(newEndMins);
+            const newDuration = startMins !== null ? newEndMins - startMins : activeBooking.durationMinutes;
             const result = await BookingService.extendBooking(activeBooking.id, {
                 newEndTime,
                 actor: 'staff',
                 reason: extendReason
             });
-            setCurrentBooking({ ...activeBooking, endTime: newEndTime, durationMinutes: (toMinutes(activeBooking.startTime || activeBooking.time) !== null ? newEndMins - toMinutes(activeBooking.startTime || activeBooking.time) : activeBooking.durationMinutes) });
+            setCurrentBooking({ ...activeBooking, endTime: newEndTime, durationMinutes: newDuration });
             setExtendSuccess(`Extended to ${newEndTime}`);
             if (result.hasOverlap) setExtendOverlapWarn(true);
             setExtendReason('');
@@ -83,15 +85,16 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
         setIsExtending(true);
 
         const startMins = toMinutes(activeBooking.startTime || activeBooking.time);
-        const newEndMins = toMinutes(customEndTime);
-        if (newEndMins === null || startMins === null || newEndMins <= startMins) {
+        const rawEndMins = toMinutes(customEndTime);
+        if (rawEndMins === null || startMins === null || rawEndMins <= startMins) {
             setExtendError('New end time must be after booking start time');
             setIsExtending(false);
             return;
         }
         // Snap to 30-min increments
-        const snappedMins = Math.round(newEndMins / 30) * 30;
+        const snappedMins = Math.round(rawEndMins / 30) * 30;
         const snappedEnd = toTimeLabel(snappedMins);
+        const newDuration = snappedMins - startMins;
 
         try {
             const result = await BookingService.extendBooking(activeBooking.id, {
@@ -99,7 +102,7 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                 actor: 'staff',
                 reason: extendReason
             });
-            setCurrentBooking({ ...activeBooking, endTime: snappedEnd, durationMinutes: snappedMins - startMins });
+            setCurrentBooking({ ...activeBooking, endTime: snappedEnd, durationMinutes: newDuration });
             setExtendSuccess(`Extended to ${snappedEnd}`);
             if (result.hasOverlap) setExtendOverlapWarn(true);
             setCustomEndTime('');
@@ -341,7 +344,7 @@ export const ViewBookingModal = ({ isOpen, onClose, booking, onEdit, onDeleted }
                                                 type="text"
                                                 value={extendReason}
                                                 onChange={(e) => setExtendReason(e.target.value)}
-                                                placeholder="Reason (optional)"
+                                                placeholder="reason (optional)"
                                                 className="w-full h-9 px-3 bg-white dark:bg-[#111] border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs font-bold outline-none focus:border-[#F26389] transition-all placeholder:text-[#b1b1b1]"
                                             />
                                         </div>
