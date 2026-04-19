@@ -6,7 +6,6 @@ import { useAuth } from '../contexts/AuthContext';
 const AuthPage = () => {
     const { signInWithGoogle, authError, setAuthError, loading } = useAuth();
     const [isSigningIn, setIsSigningIn] = useState(false);
-    const navigate = useNavigate();
 
     const handleGoogleSignIn = async () => {
         setAuthError('');
