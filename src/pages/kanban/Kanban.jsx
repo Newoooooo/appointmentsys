@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Search,
     LayoutList, LayoutDashboard,
-    ChevronRight
 } from 'lucide-react';
 import clsx from 'clsx';
 import FilterDropdown from "../../components/dropdowns/FilterDropdown.jsx";
@@ -20,6 +19,7 @@ const Kanban = () => {
     const [tasks, setTasks] = useState([]);
     const [isLoadingTasks, setIsLoadingTasks] = useState(true);
     const [taskModalOpen, setTaskModalOpen] = useState(false);
+    const [selectedTask, setSelectedTask] = useState(null);
     
     useEffect(() => {
         TaskService.getTasks().then(data => {
@@ -37,11 +37,23 @@ const Kanban = () => {
         });
     };
 
+    const handleStatusChange = useCallback(async (taskId, newStatus) => {
+        // Optimistic update
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+        try {
+            await TaskService.updateTaskStatus(taskId, newStatus);
+        } catch (error) {
+            console.error('Error updating task status:', error);
+            // Revert on failure
+            TaskService.getTasks().then(setTasks).catch(console.error);
+        }
+    }, []);
+
     const columns = [
-        { name: 'To Do', color: 'bg-[#b1b1b1]' },
-        { name: 'In Progress', color: 'bg-blue-500' },
-        { name: 'Reviewing', color: 'bg-[#F26389]' },
-        { name: 'Completed', color: 'bg-emerald-500' }
+        { name: 'pending', color: 'bg-[#b1b1b1]' },
+        { name: 'in_progress', color: 'bg-blue-500' },
+        { name: 'completed', color: 'bg-emerald-500' },
+        { name: 'sent', color: 'bg-[#F26389]' },
     ];
 
     const handleScroll = () => {
@@ -94,11 +106,14 @@ const Kanban = () => {
                             tasks={tasks}
                             scrollRef={scrollContainerRef}
                             onScroll={handleScroll}
+                            onStatusChange={handleStatusChange}
+                            onTaskClick={setSelectedTask}
                         />
                     ) : (
                         <ListView
                             columns={columns}
                             tasks={tasks}
+                            onTaskClick={setSelectedTask}
                         />
                     )}
                 </AnimatePresence>
@@ -118,10 +133,56 @@ const Kanban = () => {
                 onClose={() => setTaskModalOpen(false)}
                 onSuccess={handleRefreshTasks}
             />
+
+            {/* Task Detail Modal */}
+            <AnimatePresence>
+                {selectedTask && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setSelectedTask(null)}
+                        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-white dark:bg-[#111] rounded-2xl max-w-sm w-full p-6 space-y-4"
+                        >
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1">
+                                    <span className={clsx(
+                                        'text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest border',
+                                        selectedTask.priority === 'high'
+                                            ? 'text-[#F26389] bg-[#F26389]/10 border-[#F26389]/20'
+                                            : 'text-[#767676] bg-[#f4f2f4] dark:bg-white/5 border-transparent'
+                                    )}>
+                                        {selectedTask.tag}
+                                    </span>
+                                    <h3 className="text-sm font-black uppercase tracking-tight mt-2">{selectedTask.title}</h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedTask(null)}
+                                    className="text-[#767676] hover:text-[#2f3035] dark:hover:text-white transition-colors shrink-0"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+
+                            <div className="space-y-2 text-[10px] font-bold uppercase tracking-wide text-[#767676] dark:text-[#a0a0a0]">
+                                <p><span className="text-[#2f3035] dark:text-white">Status:</span> {selectedTask.status}</p>
+                                <p><span className="text-[#2f3035] dark:text-white">Time:</span> {selectedTask.time}</p>
+                                {selectedTask.description && (
+                                    <p><span className="text-[#2f3035] dark:text-white">Notes:</span> {selectedTask.description}</p>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
-};
-
-
-
-export default Kanban;
+};export default Kanban;
