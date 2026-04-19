@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { Calendar, ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus } from 'lucide-react';
 import clsx from 'clsx';
@@ -7,8 +7,12 @@ import WeeklyGridView from './WeeklyGridView.jsx';
 import MonthView from './MonthView.jsx';
 import FilterDropdown from '../../components/dropdowns/FilterDropdown.jsx';
 import AddBookingModal from '../../components/modals/AddBookingModal.jsx';
-import ViewBookingModal from '../../components/modals/ViewBookingModal.jsx';
+import BookingDetailsDrawer from '../../features/calendar/components/BookingDetailsDrawer.jsx';
+import RescheduleModal from '../../features/calendar/components/RescheduleModal.jsx';
+import CancelModal from '../../features/calendar/components/CancelModal.jsx';
 import { BookingService, CategoryService, ServiceService } from '../../api/services.js';
+import { CalendarBookingService } from '../../features/calendar/services/calendarBookingService.js';
+import { CalendarTaskService } from '../../features/calendar/services/calendarTaskService.js';
 
 const formatLocalISODate = (date) => {
     const year = date.getFullYear();
@@ -115,7 +119,9 @@ const Schedules = () => {
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
     const [bookingPrefillContext, setBookingPrefillContext] = useState(null);
     const [editingBooking, setEditingBooking] = useState(null);
-    const [viewBookingModalOpen, setViewBookingModalOpen] = useState(false);
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [rangeStart, setRangeStart] = useState('');
@@ -340,17 +346,53 @@ const Schedules = () => {
 
     const handleAppointmentClick = (appointment) => {
         setSelectedBooking(appointment);
-        setViewBookingModalOpen(true);
+        setDrawerOpen(true);
     };
 
     const handleEditBooking = (booking) => {
         setEditingBooking(booking);
+        setDrawerOpen(false);
         setBookingModalOpen(true);
     };
 
     const handleBookingDeleted = () => {
         // Bookings will automatically update via the subscription
     };
+
+    const handleMarkPendingEdit = useCallback(async (booking) => {
+        await CalendarBookingService.markPendingEdit(booking.id);
+        await CalendarTaskService.createPendingEditTask(booking);
+        setDrawerOpen(false);
+    }, []);
+
+    const handleComplete = useCallback(async (booking) => {
+        await CalendarBookingService.complete(booking.id);
+        setDrawerOpen(false);
+    }, []);
+
+    const handleOpenReschedule = useCallback((booking) => {
+        setSelectedBooking(booking);
+        setRescheduleModalOpen(true);
+    }, []);
+
+    const handleReschedule = useCallback(async (data) => {
+        if (!selectedBooking) return;
+        await CalendarBookingService.reschedule(selectedBooking.id, data);
+        setRescheduleModalOpen(false);
+        setDrawerOpen(false);
+    }, [selectedBooking]);
+
+    const handleOpenCancel = useCallback((booking) => {
+        setSelectedBooking(booking);
+        setCancelModalOpen(true);
+    }, []);
+
+    const handleCancel = useCallback(async (reason) => {
+        if (!selectedBooking) return;
+        await CalendarBookingService.cancel(selectedBooking.id, reason);
+        setCancelModalOpen(false);
+        setDrawerOpen(false);
+    }, [selectedBooking]);
 
     return (
         <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-visible">
@@ -517,12 +559,30 @@ const Schedules = () => {
                 editingBooking={editingBooking}
             />
 
-            <ViewBookingModal
-                isOpen={viewBookingModalOpen}
-                onClose={() => setViewBookingModalOpen(false)}
+            <BookingDetailsDrawer
+                isOpen={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
                 booking={selectedBooking}
                 onEdit={handleEditBooking}
-                onDeleted={handleBookingDeleted}
+                onReschedule={handleOpenReschedule}
+                onCancel={handleOpenCancel}
+                onMarkPendingEdit={handleMarkPendingEdit}
+                onComplete={handleComplete}
+                onBookingUpdated={(updated) => setSelectedBooking(updated)}
+            />
+
+            <RescheduleModal
+                isOpen={rescheduleModalOpen}
+                onClose={() => setRescheduleModalOpen(false)}
+                onReschedule={handleReschedule}
+                booking={selectedBooking}
+            />
+
+            <CancelModal
+                isOpen={cancelModalOpen}
+                onClose={() => setCancelModalOpen(false)}
+                onCancel={handleCancel}
+                booking={selectedBooking}
             />
         </div>
     );
