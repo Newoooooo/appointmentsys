@@ -450,7 +450,7 @@ const Schedules = () => {
                         </button>
 
                         <div className="ml-1">
-                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#767676] dark:text-[#a0a0a0]">{view === 'month' ? 'Month View' : 'Week View'}</p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#767676] dark:text-[#a0a0a0]">{view === 'month' ? 'Month View' : view === 'day' ? 'Day View' : 'Week View'}</p>
                             <p className="text-sm font-black tracking-tight text-[#2f3035] dark:text-white">{monthLabel}</p>
                         </div>
                     </div>
