@@ -1,26 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { StaffService } from '../../api/services';
 
-export const AddStaffModal = ({ isOpen, onClose, onSuccess }) => {
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        role: '',
-        access: 'Staff',
-        status: 'Active',
-        availability: 'full-time'
-    });
+const EMPTY_FORM = {
+    name: '',
+    email: '',
+    role: '',
+    access: 'Staff',
+    status: 'Active',
+    availability: 'full-time'
+};
+
+export const AddStaffModal = ({ isOpen, onClose, onSuccess, initialData }) => {
+    const isEditMode = !!initialData;
+    const [formData, setFormData] = useState(EMPTY_FORM);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
 
+    useEffect(() => {
+        if (isOpen) {
+            setError('');
+            setFormData(initialData ? {
+                name: initialData.name || '',
+                email: initialData.email || '',
+                role: initialData.role || '',
+                access: initialData.access || 'Staff',
+                status: initialData.status || 'Active',
+                availability: initialData.availability || 'full-time'
+            } : EMPTY_FORM);
+        }
+    }, [isOpen, initialData]);
+
     const handleInputChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleSubmit = async (e) => {
@@ -35,20 +49,16 @@ export const AddStaffModal = ({ isOpen, onClose, onSuccess }) => {
                 return;
             }
 
-            await StaffService.addStaffMember(formData);
+            if (isEditMode) {
+                await StaffService.updateStaffMember(initialData.id, formData);
+            } else {
+                await StaffService.addStaffMember(formData);
+            }
 
-            setFormData({
-                name: '',
-                email: '',
-                role: '',
-                access: 'Staff',
-                status: 'Active',
-                availability: 'full-time'
-            });
             onSuccess?.();
             onClose();
         } catch (err) {
-            setError(err.message || 'Failed to add staff member');
+            setError(err.message || `Failed to ${isEditMode ? 'update' : 'add'} staff member`);
         } finally {
             setIsSubmitting(false);
         }
@@ -72,7 +82,9 @@ export const AddStaffModal = ({ isOpen, onClose, onSuccess }) => {
                         className="bg-white dark:bg-[#111] rounded-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
                     >
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-lg font-black uppercase tracking-wide">Invite Staff Member</h2>
+                            <h2 className="text-lg font-black uppercase tracking-wide">
+                                {isEditMode ? 'Edit Staff Member' : 'Invite Staff Member'}
+                            </h2>
                             <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-all">
                                 <X size={20} />
                             </button>
@@ -164,7 +176,7 @@ export const AddStaffModal = ({ isOpen, onClose, onSuccess }) => {
                                     disabled={isSubmitting}
                                     className="flex-1 px-4 py-2 bg-[#F26389] text-white rounded-lg font-bold uppercase text-sm hover:bg-[#BF637C] disabled:opacity-50 transition-colors"
                                 >
-                                    {isSubmitting ? 'Inviting...' : 'Invite Member'}
+                                    {isSubmitting ? (isEditMode ? 'Saving...' : 'Inviting...') : (isEditMode ? 'Save Changes' : 'Invite Member')}
                                 </button>
                             </div>
                         </form>

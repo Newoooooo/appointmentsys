@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
+import { getAuth, browserLocalPersistence, setPersistence } from "firebase/auth";
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
@@ -27,4 +28,8 @@ if (typeof window !== 'undefined') {
 // Initialize Firestore
 const db = getFirestore(app);
 
-export { app, analytics, db };
+// Initialize Auth with persistent local session ("remember me")
+const auth = getAuth(app);
+setPersistence(auth, browserLocalPersistence).catch(console.error);
+
+export { app, analytics, db, auth };

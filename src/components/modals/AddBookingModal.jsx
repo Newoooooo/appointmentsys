@@ -87,6 +87,7 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
     const [selectedService, setSelectedService] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [overlapWarning, setOverlapWarning] = useState(false);
 
     const toMinutes = (hour, minute) => (Number(hour) * 60) + Number(minute);
     const toTimeParts = (totalMinutes) => {
@@ -105,6 +106,8 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
 
     useEffect(() => {
         if (isOpen) {
+            setOverlapWarning(false);
+            setError('');
             CategoryService.getCategories().then(setCategories).catch(console.error);
             ServiceService.getServices().then(setServices).catch(console.error);
             StaffService.getStaff().then(setStaff).catch(console.error);
@@ -343,7 +346,8 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
             if (isEditMode) {
                 await BookingService.updateBooking(editingBooking.id, bookingData);
             } else {
-                await BookingService.createBooking(bookingData);
+                const result = await BookingService.createBooking(bookingData);
+                if (result.hasOverlap) setOverlapWarning(true);
             }
 
             const resetDate = new Date();
@@ -404,6 +408,12 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                         {error && (
                             <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-600 text-sm">
                                 {error}
+                            </div>
+                        )}
+
+                        {overlapWarning && (
+                            <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-yellow-700 dark:text-yellow-400 text-sm font-bold">
+                                ⚠ Booking created, but it overlaps with another booking for this staff member.
                             </div>
                         )}
 
