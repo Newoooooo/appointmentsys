@@ -1,15 +1,30 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, ArrowRight, Github, Chrome } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Chrome, ArrowRight, AlertCircle } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 const AuthPage = () => {
-    const [isLogin, setIsLogin] = useState(true);
+    const { signInWithGoogle, authError, setAuthError, loading } = useAuth();
+    const [isSigningIn, setIsSigningIn] = useState(false);
+    const navigate = useNavigate();
+
+    const handleGoogleSignIn = async () => {
+        setAuthError('');
+        setIsSigningIn(true);
+        try {
+            await signInWithGoogle();
+            // Navigation handled by App.jsx ProtectedRoute after auth state resolves
+        } catch {
+            // authError is set inside signInWithGoogle if needed
+        } finally {
+            setIsSigningIn(false);
+        }
+    };
 
     return (
         <div className="min-h-screen flex bg-[#fdfcfc] dark:bg-[#141414] transition-colors duration-500">
-            {/* Left Side: Dark Mode Minimalist Visuals */}
+            {/* Left Side */}
             <div className="hidden lg:flex lg:w-1/2 bg-[#2f3035] dark:bg-[#1c1c1c] p-16 flex-col justify-between relative overflow-hidden">
-                {/* Abstract Top Graphic */}
                 <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
                     <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full border-[1px] border-[#f9b095]" />
                     <div className="absolute top-[20%] left-[10%] w-[300px] h-[300px] rounded-full border-[1px] border-[#F26389]" />
@@ -40,77 +55,58 @@ const AuthPage = () => {
                 </div>
             </div>
 
-            {/* Right Side: High-Contrast Minimal Form */}
+            {/* Right Side */}
             <div className="w-full lg:w-1/2 flex items-center justify-center p-8 md:p-16">
                 <motion.div
-                    key={isLogin ? 'login' : 'signup'}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="max-w-md w-full space-y-10"
                 >
-                    <div className="space-y-3 text-center lg:text-left">
-                        <p className="text-[10px] font-black text-[#F26389] uppercase tracking-[0.4em]">Get Started</p>
+                    {/* Mobile logo */}
+                    <div className="flex lg:hidden items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-[#F26389] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg">
+                            B
+                        </div>
+                        <span className="text-xl font-black tracking-tighter text-[#2f3035] dark:text-[#fdfcfc]">bookly</span>
+                    </div>
+
+                    <div className="space-y-3">
+                        <p className="text-[10px] font-black text-[#F26389] uppercase tracking-[0.4em]">Staff Portal</p>
                         <h1 className="text-4xl font-black text-[#2f3035] dark:text-[#fdfcfc] tracking-tight">
-                            {isLogin ? 'Welcome back' : 'Join the elite'}
+                            Welcome back
                         </h1>
+                        <p className="text-sm text-[#b1b1b1]">Sign in with your authorised Google account to continue.</p>
                     </div>
 
-                    <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                            <button className="flex items-center justify-center gap-3 px-4 py-4 border border-[#e6e4e6] dark:border-[#3f3835] rounded-2xl font-black text-[10px] uppercase tracking-widest text-[#2f3035] dark:text-[#b1b1b1] hover:bg-[#fdfcfc] dark:hover:bg-[#282828] transition-all">
-                                <Chrome size={18} /> Google
-                            </button>
-                            <button className="flex items-center justify-center gap-3 px-4 py-4 border border-[#e6e4e6] dark:border-[#3f3835] rounded-2xl font-black text-[10px] uppercase tracking-widest text-[#2f3035] dark:text-[#b1b1b1] hover:bg-[#fdfcfc] dark:hover:bg-[#282828] transition-all">
-                                <Github size={18} /> Github
-                            </button>
-                        </div>
-
-                        <div className="relative py-4">
-                            <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-[#e6e4e6] dark:border-[#3f3835]" /></div>
-                            <div className="relative flex justify-center text-[10px] uppercase"><span className="bg-[#fdfcfc] dark:bg-[#141414] px-4 text-[#b1b1b1] font-black tracking-[0.2em]">Or use email</span></div>
-                        </div>
-
-                        <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
-                            {!isLogin && (
-                                <div className="space-y-2">
-                                    <label className="text-[10px] font-black text-[#b1b1b1] uppercase tracking-widest ml-2">Studio Name</label>
-                                    <input type="text" placeholder="The Wellness Lab" className="w-full px-5 py-4 bg-transparent rounded-2xl border border-[#e6e4e6] dark:border-[#3f3835] focus:border-[#F26389] outline-none transition-all text-[#2f3035] dark:text-[#fdfcfc]" />
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-black text-[#b1b1b1] uppercase tracking-widest ml-2">Email</label>
-                                <div className="relative">
-                                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 text-[#b1b1b1]" size={18} />
-                                    <input type="email" placeholder="sarah@studio.com" className="w-full pl-14 pr-5 py-4 bg-transparent rounded-2xl border border-[#e6e4e6] dark:border-[#3f3835] focus:border-[#F26389] outline-none transition-all text-[#2f3035] dark:text-[#fdfcfc]" />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="flex justify-between px-2">
-                                    <label className="text-[10px] font-black text-[#b1b1b1] uppercase tracking-widest">Password</label>
-                                    {isLogin && <button className="text-[10px] font-black text-[#F26389] uppercase tracking-widest">Forgot?</button>}
-                                </div>
-                                <div className="relative">
-                                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 text-[#b1b1b1]" size={18} />
-                                    <input type="password" placeholder="••••••••" className="w-full pl-14 pr-5 py-4 bg-transparent rounded-2xl border border-[#e6e4e6] dark:border-[#3f3835] focus:border-[#F26389] outline-none transition-all text-[#2f3035] dark:text-[#fdfcfc]" />
-                                </div>
-                            </div>
-
-                            <button className="w-full bg-[#2f3035] dark:bg-[#F26389] text-white py-5 rounded-[24px] font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 hover:scale-[1.02] active:scale-95 transition-all shadow-2xl shadow-[#F26389]/10 mt-8">
-                                {isLogin ? 'Sign In' : 'Create Account'} <ArrowRight size={18} />
-                            </button>
-                        </form>
-                    </div>
-
-                    <p className="text-center text-[10px] font-black text-[#b1b1b1] uppercase tracking-widest">
-                        {isLogin ? "New to the platform?" : "Joined us before?"} {' '}
-                        <button
-                            onClick={() => setIsLogin(!isLogin)}
-                            className="text-[#F26389] hover:underline underline-offset-4"
+                    {authError && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-start gap-3 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-2xl text-red-600 dark:text-red-400"
                         >
-                            {isLogin ? 'Create Account' : 'Log in'}
-                        </button>
+                            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                            <p className="text-sm font-medium">{authError}</p>
+                        </motion.div>
+                    )}
+
+                    <button
+                        onClick={handleGoogleSignIn}
+                        disabled={isSigningIn || loading}
+                        className="w-full flex items-center justify-center gap-4 px-6 py-5 border-2 border-[#e6e4e6] dark:border-[#3f3835] rounded-2xl font-black text-sm uppercase tracking-widest text-[#2f3035] dark:text-[#fdfcfc] hover:border-[#F26389] hover:bg-[#F26389]/5 disabled:opacity-50 disabled:cursor-not-allowed transition-all group"
+                    >
+                        {isSigningIn ? (
+                            <div className="w-5 h-5 border-2 border-[#F26389] border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <Chrome size={20} className="text-[#F26389]" />
+                        )}
+                        <span>{isSigningIn ? 'Signing in…' : 'Continue with Google'}</span>
+                        {!isSigningIn && (
+                            <ArrowRight size={16} className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                    </button>
+
+                    <p className="text-center text-[10px] font-bold text-[#b1b1b1] tracking-wider">
+                        Access is restricted to authorised admin and staff accounts only.
                     </p>
                 </motion.div>
             </div>

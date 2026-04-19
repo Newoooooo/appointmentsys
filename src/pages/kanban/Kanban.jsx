@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus, Search,
     LayoutList, LayoutDashboard,
-    ChevronRight
 } from 'lucide-react';
 import clsx from 'clsx';
 import FilterDropdown from "../../components/dropdowns/FilterDropdown.jsx";
@@ -36,6 +35,18 @@ const Kanban = () => {
             setTasks(data);
         });
     };
+
+    const handleStatusChange = useCallback(async (taskId, newStatus) => {
+        // Optimistic update
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t));
+        try {
+            await TaskService.updateTaskStatus(taskId, newStatus);
+        } catch (error) {
+            console.error('Error updating task status:', error);
+            // Revert on failure
+            TaskService.getTasks().then(setTasks).catch(console.error);
+        }
+    }, []);
 
     const columns = [
         { name: 'To Do', color: 'bg-[#b1b1b1]' },
@@ -94,6 +105,7 @@ const Kanban = () => {
                             tasks={tasks}
                             scrollRef={scrollContainerRef}
                             onScroll={handleScroll}
+                            onStatusChange={handleStatusChange}
                         />
                     ) : (
                         <ListView
