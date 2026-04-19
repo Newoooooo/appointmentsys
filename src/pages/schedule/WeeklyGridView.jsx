@@ -20,7 +20,7 @@ const toMinutes = (timeValue) => {
  */
 const computeOverlapLayout = (dayAppts) => {
     if (!dayAppts.length) return [];
-    const sorted = [...dayAppts].sort((a, b) => a.startMin - b.startMin);
+    const sorted = [...dayAppts].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin || String(a.id).localeCompare(String(b.id)));
     const colEnds = []; // track end-time of last event assigned to each column
     const assigned = sorted.map((appt) => {
         let col = colEnds.findIndex((e) => e <= appt.startMin);
@@ -137,7 +137,7 @@ const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, staffColors,
                                                 }}
                                             >
                                                 <div className={clsx('absolute left-0 top-0 bottom-0 w-1 rounded-l-xl', staffColors[appt.staff]?.bg || 'bg-[#F26389]')} />
-                                                <div className={clsx('h-full flex flex-col justify-between overflow-hidden', isNarrow ? 'p-1 pl-2' : 'p-2 pl-2')}>
+                                                <div className={clsx('h-full flex flex-col justify-between overflow-hidden pl-2', isNarrow ? 'p-1' : 'p-2')}>
                                                     <div>
                                                         <span className="text-[7px] font-black text-[#F26389] uppercase block leading-tight truncate">{appt.type}</span>
                                                         <h4 className={clsx('font-black uppercase tracking-tight leading-tight line-clamp-2', isNarrow ? 'text-[8px]' : 'text-[10px]')}>

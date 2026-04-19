@@ -21,7 +21,7 @@ const toMinutes = (timeValue) => {
  */
 const computeOverlapLayout = (dayAppts) => {
     if (!dayAppts.length) return [];
-    const sorted = [...dayAppts].sort((a, b) => a.startMin - b.startMin);
+    const sorted = [...dayAppts].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin || String(a.id).localeCompare(String(b.id)));
     const colEnds = [];
     const assigned = sorted.map((appt) => {
         let col = colEnds.findIndex((e) => e <= appt.startMin);
