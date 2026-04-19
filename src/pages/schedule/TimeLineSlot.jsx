@@ -2,23 +2,36 @@ import clsx from 'clsx';
 import { Plus } from 'lucide-react';
 import { AppointmentCard } from './AppointmentCard';
 
+const toAmPm = (time24) => {
+    if (!time24 || !String(time24).includes(':')) return time24;
+    const [hourStr, minute] = String(time24).split(':');
+    const hour = Number.parseInt(hourStr, 10);
+    if (Number.isNaN(hour)) return time24;
+    const ampm = hour < 12 ? 'AM' : 'PM';
+    const h = hour % 12 || 12;
+    return `${h}${minute === '00' ? '' : `:${minute}`} ${ampm}`;
+};
+
 export const TimelineSlot = ({
     hour,
     day,
     appointments = [],
-    staffColors,
+    getCategoryColor,
     onSlotClick,
     onAppointmentClick,
     isOccupied = false,
 }) => {
     const hasStarts = appointments.length > 0;
-    const firstStaff = appointments[0]?.appointment?.staff;
+    const firstCategory = appointments[0]?.appointment?.category;
+    const dotColor = firstCategory
+        ? (getCategoryColor?.(firstCategory) || '#F26389')
+        : null;
 
     return (
         <div className="group flex gap-6 h-14">
-            <div className="w-10 pt-2 shrink-0 text-right">
-                <span className="text-[10px] font-black opacity-20 uppercase tracking-tighter group-hover:opacity-100 transition-opacity">
-                    {hour.endsWith(':00') ? hour.split(':')[0] : ''}
+            <div className="w-14 pt-2 shrink-0 text-right pr-1">
+                <span className="text-[9px] font-black opacity-20 uppercase tracking-tighter group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    {hour.endsWith(':00') ? toAmPm(hour) : ''}
                 </span>
             </div>
 
@@ -39,13 +52,15 @@ export const TimelineSlot = ({
                 }}
                 role="button"
                 tabIndex={0}
-                aria-label={`Add booking at ${hour}`}
+                aria-label={`Add booking at ${toAmPm(hour)}`}
             >
                 <div
                     className={clsx(
-                        'absolute -left-1 top-2.5 w-2 h-2 rounded-full border-2 border-[#fdfcfc] dark:border-[#080808] transition-colors z-10',
-                        isOccupied ? ((staffColors?.[firstStaff])?.bg || 'bg-[#F26389]') : 'bg-[#f4f2f4] dark:bg-white/10'
+                        'absolute -left-1 top-2.5 w-2 h-2 rounded-full border-2 border-[#fdfcfc] dark:border-[#080808] transition-colors z-10'
                     )}
+                    style={isOccupied && dotColor
+                        ? { backgroundColor: dotColor }
+                        : { backgroundColor: '#e5e3e5' }}
                 />
 
                 {hasStarts ? (() => {
@@ -63,7 +78,7 @@ export const TimelineSlot = ({
                                 >
                                     <AppointmentCard
                                         appt={appointment}
-                                        staffColor={staffColors?.[appointment.staff]}
+                                        categoryColor={getCategoryColor?.(appointment.category)}
                                         onClick={onAppointmentClick}
                                     />
                                 </div>

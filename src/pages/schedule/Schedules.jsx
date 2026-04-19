@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus } from 'lucide-react';
 import clsx from 'clsx';
 import DailyListView from './DailyListView.jsx';
 import WeeklyGridView from './WeeklyGridView.jsx';
+import MonthView from './MonthView.jsx';
 import FilterDropdown from '../../components/dropdowns/FilterDropdown.jsx';
 import AddBookingModal from '../../components/modals/AddBookingModal.jsx';
 import ViewBookingModal from '../../components/modals/ViewBookingModal.jsx';
-import { BookingService, ServiceService } from '../../api/services.js';
+import { BookingService, CategoryService, ServiceService } from '../../api/services.js';
 
 const formatLocalISODate = (date) => {
     const year = date.getFullYear();
@@ -110,6 +111,7 @@ const Schedules = () => {
     const [activeDay, setActiveDay] = useState(todayIso);
     const [rawBookings, setRawBookings] = useState([]);
     const [serviceCategoryMap, setServiceCategoryMap] = useState({});
+    const [categoryColorMap, setCategoryColorMap] = useState({});
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
     const [bookingPrefillContext, setBookingPrefillContext] = useState(null);
     const [editingBooking, setEditingBooking] = useState(null);
@@ -139,6 +141,18 @@ const Schedules = () => {
                     map[service.id] = service.category || 'Uncategorized';
                 });
                 setServiceCategoryMap(map);
+            })
+            .catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        CategoryService.getCategories()
+            .then((cats) => {
+                const map = {};
+                (cats || []).forEach((cat) => {
+                    if (cat?.name) map[cat.name] = cat.color || '#F26389';
+                });
+                setCategoryColorMap(map);
             })
             .catch(console.error);
     }, []);
@@ -257,14 +271,8 @@ const Schedules = () => {
 
     const monthLabel = useMemo(() => getWeekMonthLabel(fullWeek), [fullWeek]);
 
-    const staffColors = {
-        'Dr. Adams': { bg: 'bg-blue-500', border: 'border-blue-500/20', text: '#3b82f6' },
-        'Nurse Joy': { bg: 'bg-emerald-500', border: 'border-emerald-500/20', text: '#10b981' },
-        'Dr. Smith': { bg: 'bg-purple-500', border: 'border-purple-500/20', text: '#a855f7' },
-        'Jordan Smith': { bg: 'bg-indigo-500', border: 'border-indigo-500/20', text: '#6366f1' },
-        'Elena Rodriguez': { bg: 'bg-cyan-500', border: 'border-cyan-500/20', text: '#06b6d4' },
-        'Marcus Thompson': { bg: 'bg-pink-500', border: 'border-pink-500/20', text: '#ec4899' },
-        'Sarah Chen': { bg: 'bg-lime-500', border: 'border-lime-500/20', text: '#84cc16' }
+    const getCategoryColor = (categoryName) => {
+        return categoryColorMap[categoryName] || '#F26389';
     };
 
     const hours = Array.from({ length: 29 }, (_, index) => {
@@ -345,8 +353,8 @@ const Schedules = () => {
     };
 
     return (
-        <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden">
-            <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 relative z-20">
+        <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-visible">
+            <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 relative z-30">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                         <button
@@ -369,7 +377,7 @@ const Schedules = () => {
                         </button>
 
                         <div className="ml-1">
-                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#767676] dark:text-[#a0a0a0]">Week View</p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#767676] dark:text-[#a0a0a0]">{view === 'month' ? 'Month View' : 'Week View'}</p>
                             <p className="text-sm font-black tracking-tight text-[#2f3035] dark:text-white">{monthLabel}</p>
                         </div>
                     </div>
@@ -379,23 +387,34 @@ const Schedules = () => {
                             <button
                                 onClick={() => setView('day')}
                                 className={clsx('p-1.5 rounded-lg transition-all', view === 'day' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
+                                title="Day view"
                             >
                                 <LayoutList size={14} />
                             </button>
                             <button
                                 onClick={() => setView('week')}
                                 className={clsx('p-1.5 rounded-lg transition-all', view === 'week' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
+                                title="Week view"
                             >
                                 <LayoutDashboard size={14} />
                             </button>
+                            <button
+                                onClick={() => setView('month')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'month' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
+                                title="Month view"
+                            >
+                                <Calendar size={14} />
+                            </button>
                         </div>
 
-                        <FilterDropdown
-                            activeFilter={selectedCategory}
-                            onSelect={setSelectedCategory}
-                            align="right"
-                            options={categoryOptions}
-                        />
+                        <div className="relative z-50">
+                            <FilterDropdown
+                                activeFilter={selectedCategory}
+                                onSelect={setSelectedCategory}
+                                align="right"
+                                options={categoryOptions}
+                            />
+                        </div>
 
                         <button
                             onClick={handleOpenBookingModal}
@@ -446,20 +465,45 @@ const Schedules = () => {
                             fullWeek={fullWeek}
                             hours={hours}
                             appointments={filteredAppointments}
-                            staffColors={staffColors}
+                            getCategoryColor={getCategoryColor}
                             onSlotClick={handleSlotClick}
                             onAppointmentClick={handleAppointmentClick}
                         />
-                    ) : (
+                    ) : view === 'week' ? (
                         <WeeklyGridView
                             key="week"
                             activeDay={activeDay}
                             fullWeek={fullWeek}
                             hours={hours}
                             appointments={filteredAppointments}
-                            staffColors={staffColors}
+                            getCategoryColor={getCategoryColor}
                             onSlotClick={handleSlotClick}
                             onAppointmentClick={handleAppointmentClick}
+                        />
+                    ) : (
+                        <MonthView
+                            key="month"
+                            activeDay={activeDay}
+                            onSelectDay={(day) => {
+                                setActiveDay(day);
+                                setView('day');
+                            }}
+                            appointments={filteredAppointments}
+                            currentWeekStart={currentWeekStart}
+                            onPrevMonth={() => setCurrentWeekStart((prev) => {
+                                const d = new Date(prev);
+                                d.setMonth(d.getMonth() - 1);
+                                d.setDate(1);
+                                return d;
+                            })}
+                            onNextMonth={() => setCurrentWeekStart((prev) => {
+                                const d = new Date(prev);
+                                d.setMonth(d.getMonth() + 1);
+                                d.setDate(1);
+                                return d;
+                            })}
+                            getCategoryColor={getCategoryColor}
+                            todayIso={todayIso}
                         />
                     )}
                 </AnimatePresence>

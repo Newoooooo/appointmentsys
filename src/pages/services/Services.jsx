@@ -1,7 +1,7 @@
 import React, {useMemo, useState, useEffect} from 'react';
 import { AnimatePresence } from 'framer-motion';
 import {
-    Plus, Search, Tags
+    Plus, Search
 } from 'lucide-react';
 import {ServiceCard} from "./ServiceCard.jsx";
 import {ServiceFooter} from "./ServiceFooter.jsx";
@@ -172,17 +172,6 @@ const Services = () => {
                         Manage Categories
                     </button>
                     <button
-                        type="button"
-                        onClick={() => {
-                            setEditingService(null);
-                            setServiceModalOpen(true);
-                        }}
-                        className="h-10 px-3 border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[9px] font-black uppercase tracking-[0.18em] text-[#b1b1b1] hover:text-[#F26389] hover:border-[#F26389] transition-all flex items-center gap-1.5"
-                    >
-                        <Tags size={12} />
-                        Add Service
-                    </button>
-                    <button
                         onClick={() => {
                             setEditingService(null);
                             setServiceModalOpen(true);
@@ -192,6 +181,7 @@ const Services = () => {
                             backgroundColor: activeAccentColor,
                             boxShadow: `0 8px 20px ${activeAccentColor}33`
                         }}
+                        title="Add Service"
                     >
                         <Plus size={16} strokeWidth={3} />
                     </button>
@@ -265,23 +255,6 @@ const Services = () => {
                         <div key="empty" className="py-8 text-center text-[#b1b1b1]">
                             <p className="text-[10px] font-bold uppercase">No services found</p>
                         </div>
-                    )}
-
-                    {!isLoadingServices && (
-                        <button
-                            onClick={() => {
-                                setEditingService(null);
-                                setServiceModalOpen(true);
-                            }}
-                            className="group mt-2 py-4 border-2 border-dashed rounded-2xl flex items-center justify-center gap-3 transition-all"
-                            style={{
-                                borderColor: `${activeAccentColor}4D`,
-                                color: activeAccentColor
-                            }}
-                        >
-                            <Plus size={14} strokeWidth={3} className="group-hover:rotate-90 transition-transform duration-300" />
-                            <span className="text-[8px] font-black uppercase tracking-[0.3em]">Add Service</span>
-                        </button>
                     )}
                 </div>
             </div>

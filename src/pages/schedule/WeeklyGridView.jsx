@@ -14,7 +14,17 @@ const toMinutes = (timeValue) => {
     return hour * 60 + minute;
 };
 
-const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, staffColors, onSlotClick, onAppointmentClick }) => {
+const toAmPm = (time24) => {
+    if (!time24 || !String(time24).includes(':')) return time24;
+    const [hourStr, minute] = String(time24).split(':');
+    const hour = Number.parseInt(hourStr, 10);
+    if (Number.isNaN(hour)) return time24;
+    const ampm = hour < 12 ? 'AM' : 'PM';
+    const h = hour % 12 || 12;
+    return `${h}${minute === '00' ? '' : `:${minute}`} ${ampm}`;
+};
+
+const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, getCategoryColor, onSlotClick, onAppointmentClick }) => {
     const [nowMinutes, setNowMinutes] = useState(() => {
         const n = new Date();
         return n.getHours() * 60 + n.getMinutes();
@@ -73,7 +83,7 @@ const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, staffColors,
         >
             <div className="min-w-250 h-full flex flex-col relative">
                 <div className="flex border-b border-[#f4f2f4] dark:border-white/10 bg-[#fdfcfc] dark:bg-[#0c0c0c] sticky top-0 z-20">
-                    <div className="w-16 shrink-0 border-r border-[#f4f2f4] dark:border-white/10 bg-[#fdfcfc] dark:bg-[#0c0c0c] sticky left-0" />
+                    <div className="w-20 shrink-0 border-r border-[#f4f2f4] dark:border-white/10 bg-[#fdfcfc] dark:bg-[#0c0c0c] sticky left-0" />
 
                     {fullWeek.map((day) => (
                         <div
@@ -98,11 +108,11 @@ const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, staffColors,
                 </div>
 
                 <div className="flex-1 overflow-y-auto no-scrollbar relative flex max-h-150">
-                    <div className="sticky left-0 bg-[#fdfcfc] dark:bg-[#0c0c0c] w-16 shrink-0 border-r border-[#f4f2f4] dark:border-white/10 z-10">
+                    <div className="sticky left-0 bg-[#fdfcfc] dark:bg-[#0c0c0c] w-20 shrink-0 border-r border-[#f4f2f4] dark:border-white/10 z-10">
                         {hours.map((hour) => (
-                            <div key={hour} className="h-14 flex items-start justify-center pt-2 border-b border-[#f4f2f4]/50 dark:border-white/5 last:border-0">
-                                <span className="text-[10px] font-black opacity-30 uppercase tracking-tighter">
-                                    {hour.endsWith(':00') ? hour.split(':')[0] : ''}
+                            <div key={hour} className="h-14 flex items-start justify-end pr-2 pt-2 border-b border-[#f4f2f4]/50 dark:border-white/5 last:border-0">
+                                <span className="text-[9px] font-black opacity-40 whitespace-nowrap">
+                                    {hour.endsWith(':00') ? toAmPm(hour) : ''}
                                 </span>
                             </div>
                         ))}
@@ -148,30 +158,36 @@ const WeeklyGridView = ({ activeDay, fullWeek, hours, appointments, staffColors,
                                                         className="absolute left-1.5 right-1.5 top-1.5 z-10 flex gap-0.5"
                                                         style={{ height: `calc(${maxSpan} * 3.5rem - 0.5rem)` }}
                                                     >
-                                                    {startingAppts.map(({ appointment: appt, slotSpan }, idx) => (
-                                                        <div
-                                                            key={appt.id || idx}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onAppointmentClick?.(appt);
-                                                            }}
-                                                            className="flex-1 min-w-0 bg-white dark:bg-[#151515] border border-[#f4f2f4] dark:border-white/10 rounded-xl p-2 shadow-sm flex flex-col justify-between overflow-hidden hover:shadow-lg hover:border-[#F26389]/30 transition-all cursor-pointer"
-                                                            style={{ height: `calc(${slotSpan} * 3.5rem - 0.5rem)` }}
-                                                        >
-                                                            <div className={clsx('absolute left-0 top-0 bottom-0 w-1 rounded-l-xl', staffColors[appt.staff]?.bg)} />
-                                                            <div className="space-y-1">
-                                                                <span className="text-[7px] font-black text-[#F26389] uppercase">{appt.type}</span>
-                                                                <h4 className="text-[10px] font-black uppercase tracking-tight leading-tight line-clamp-2">{appt.name}</h4>
+                                                    {startingAppts.map(({ appointment: appt, slotSpan }, idx) => {
+                                                        const catColor = getCategoryColor?.(appt.category) || '#F26389';
+                                                        return (
+                                                            <div
+                                                                key={appt.id || idx}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onAppointmentClick?.(appt);
+                                                                }}
+                                                                className="flex-1 min-w-0 bg-white dark:bg-[#151515] border border-[#f4f2f4] dark:border-white/10 rounded-xl p-2 shadow-sm flex flex-col justify-between overflow-hidden hover:shadow-lg transition-all cursor-pointer"
+                                                                style={{
+                                                                    height: `calc(${slotSpan} * 3.5rem - 0.5rem)`,
+                                                                    borderLeftColor: catColor,
+                                                                    borderLeftWidth: 3
+                                                                }}
+                                                            >
+                                                                <div className="space-y-1">
+                                                                    <span className="text-[7px] font-black uppercase" style={{ color: catColor }}>{appt.category || appt.type}</span>
+                                                                    <h4 className="text-[10px] font-black uppercase tracking-tight leading-tight line-clamp-2">{appt.name}</h4>
+                                                                </div>
+                                                                <div className="flex items-center justify-between pt-2 border-t border-[#f4f2f4] dark:border-white/5">
+                                                                    <span className="text-[7px] font-bold text-[#767676] dark:text-[#a0a0a0] uppercase">{appt.room}</span>
+                                                                    <span className="text-[7px] font-black uppercase" style={{ color: catColor }}>
+                                                                        {appt.staff?.split(' ')?.pop()}
+                                                                    </span>
+                                                                </div>
                                                             </div>
-                                                            <div className="flex items-center justify-between pt-2 border-t border-[#f4f2f4] dark:border-white/5">
-                                                                <span className="text-[7px] font-bold text-[#767676] dark:text-[#a0a0a0] uppercase">{appt.room}</span>
-                                                                <span className={clsx('text-[7px] font-black uppercase', staffColors[appt.staff]?.text)}>
-                                                                    {appt.staff?.split(' ')?.pop()}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
+                                                        );
+                                                    })}
+                                                    </div>
                                                 );
                                             })() : (
                                                 <div className="w-full h-full flex items-center justify-center">

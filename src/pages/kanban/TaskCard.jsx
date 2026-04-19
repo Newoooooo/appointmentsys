@@ -3,14 +3,23 @@ import React from "react";
 import Card from "../../components/ui/Card.jsx";
 import clsx from "clsx";
 
-export const TaskCard = ({ task }) => {
+export const TaskCard = ({ task, isDragging, onDragStart, onClick }) => {
     // Priority specific styles
     const isHigh = task.priority === 'high';
 
     return (
         <Card
             whileTap={{ scale: 0.97 }}
-            className="bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl p-4 space-y-4 group shadow-sm hover:border-[#F26389]/30 transition-all duration-300"
+            draggable
+            onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                onDragStart?.(task.id);
+            }}
+            onClick={() => onClick?.(task)}
+            className={clsx(
+                "bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl p-4 space-y-4 group shadow-sm hover:border-[#F26389]/30 transition-all duration-300 cursor-grab active:cursor-grabbing",
+                isDragging && "opacity-50 scale-95 ring-2 ring-[#F26389]/40"
+            )}
         >
             <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
@@ -31,7 +40,7 @@ export const TaskCard = ({ task }) => {
                         </div>
                     )}
                 </div>
-                <GripVertical size={12} className="text-[#b1b1b1] opacity-30 group-hover:opacity-100 transition-opacity cursor-grab" />
+                <GripVertical size={12} className="text-[#b1b1b1] opacity-30 group-hover:opacity-100 transition-opacity" />
             </div>
 
             <div className="space-y-1">

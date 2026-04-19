@@ -14,7 +14,7 @@ const toMinutes = (timeValue) => {
     return hour * 60 + minute;
 };
 
-const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments, staffColors, onSlotClick, onAppointmentClick }) => {
+const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments, getCategoryColor, onSlotClick, onAppointmentClick }) => {
     const [nowMinutes, setNowMinutes] = useState(() => {
         const n = new Date();
         return n.getHours() * 60 + n.getMinutes();
@@ -115,7 +115,7 @@ const DailyListView = ({ activeDay, setActiveDay, fullWeek, hours, appointments,
                             isOccupied={occupied}
                             onSlotClick={onSlotClick}
                             onAppointmentClick={onAppointmentClick}
-                            staffColors={staffColors}
+                            getCategoryColor={getCategoryColor}
                         />
                     );
                 })}
