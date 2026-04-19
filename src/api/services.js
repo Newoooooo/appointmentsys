@@ -386,7 +386,10 @@ export const BookingService = {
             { field: 'staffId', operator: '==', value: staffId }
         ]);
 
-        return (existingBookings || []).some((booking) => {
+        return (existingBookings || []).filter((b) => {
+            const s = (b.status || '').toLowerCase();
+            return s !== 'cancelled' && s !== 'completed';
+        }).some((booking) => {
             if (bookingId && booking.id === bookingId) return false;
 
             const bookingStart = toMinutes(booking.startTime || booking.time);
@@ -421,16 +424,12 @@ export const BookingService = {
             const endTime = toTimeLabel(computedEndMinutes);
             const durationMinutes = Math.max(15, computedEndMinutes - startMinutes);
 
-            const hasConflict = await this.hasBookingConflict({
+            const hasOverlap = await this.hasBookingConflict({
                 date: bookingData.date,
                 staffId: bookingData.staffId,
                 startTime,
                 endTime
             });
-
-            if (hasConflict) {
-                throw new Error('Booking time overlaps with an existing booking for this staff member.');
-            }
 
             const booking = await addDocument('bookings', {
                 ...bookingData,
@@ -445,6 +444,7 @@ export const BookingService = {
             
             return {
                 success: true,
+                hasOverlap,
                 id: booking.id,
                 appointment: {
                     id: booking.id,
@@ -511,6 +511,150 @@ export const BookingService = {
             return { success: true, id: bookingId };
         } catch (error) {
             console.error('Error updating booking:', error);
+            throw error;
+        }
+    },
+
+    async extendBooking(bookingId, additionalMinutesOrOptions) {
+        try {
+            const booking = await getDocument('bookings', bookingId);
+            if (!booking) throw new Error('Booking not found');
+
+            // Support both (id, minutes) and (id, { newEndTime, actor, reason })
+            let newEndTime, actor, reason;
+            if (typeof additionalMinutesOrOptions === 'number') {
+                const endMins = toMinutes(booking.endTime);
+                if (endMins === null) throw new Error('Invalid booking end time');
+                const newEndMins = Math.min(endMins + additionalMinutesOrOptions, 22 * 60);
+                newEndTime = toTimeLabel(newEndMins);
+                actor = 'system';
+                reason = '';
+            } else {
+                ({ newEndTime, actor, reason } = additionalMinutesOrOptions || {});
+            }
+
+            const oldEndTime = booking.endTime;
+            const startMinutes = toMinutes(booking.startTime || booking.time || '09:00');
+            const newEndMinutes = toMinutes(newEndTime);
+
+            if (newEndMinutes === null || startMinutes === null) {
+                throw new Error('Invalid time value');
+            }
+            if (newEndMinutes <= startMinutes) {
+                throw new Error('New end time must be after start time');
+            }
+
+            const newDurationMinutes = newEndMinutes - startMinutes;
+
+            const hasOverlap = await this.hasBookingConflict({
+                bookingId,
+                date: booking.date,
+                staffId: booking.staffId,
+                startTime: booking.startTime || booking.time,
+                endTime: newEndTime
+            });
+
+            await updateDocument('bookings', bookingId, {
+                endTime: newEndTime,
+                durationMinutes: newDurationMinutes,
+                updatedAt: serverTimestamp()
+            });
+
+            await addDocument('bookingAudits', {
+                bookingId,
+                action: 'extended',
+                oldEnd: oldEndTime,
+                newEnd: newEndTime,
+                actor: actor || 'system',
+                reason: reason || '',
+                timestamp: serverTimestamp()
+            });
+
+            return { success: true, hasOverlap, oldEndTime, newEndTime };
+        } catch (error) {
+            console.error('Error extending booking:', error);
+            throw error;
+        }
+    },
+
+    async cancelBooking(bookingId, reason = '') {
+        try {
+            await updateDocument('bookings', bookingId, {
+                status: 'Cancelled',
+                cancellationReason: reason,
+                cancelledAt: new Date().toISOString(),
+                updatedAt: serverTimestamp(),
+            });
+            return { success: true };
+        } catch (error) {
+            console.error('Error cancelling booking:', error);
+            throw error;
+        }
+    },
+
+    async markPendingEdit(bookingId, reason = '') {
+        try {
+            // Enforce one open pending-edit task per booking
+            const existingTasks = await getCollection('tasks');
+            const openPendingEdit = existingTasks.find(
+                (t) => t.bookingId === bookingId && t.type === 'pending_edit' && t.status !== 'sent'
+            );
+            if (openPendingEdit) {
+                throw new Error('This booking already has an open pending-edit task.');
+            }
+
+            await updateDocument('bookings', bookingId, {
+                status: 'pending_edit',
+                pendingEditReason: reason,
+                pendingEditAt: new Date().toISOString(),
+                updatedAt: serverTimestamp(),
+            });
+
+            // Create a kanban task for this pending edit
+            const booking = await getDocument('bookings', bookingId);
+            if (booking) {
+                const dueDate = new Date();
+                dueDate.setDate(dueDate.getDate() + 10);
+                await addDocument('tasks', {
+                    bookingId,
+                    type: 'pending_edit',
+                    title: `Pending Edit: ${booking.clientName || 'Client'}`,
+                    description: reason || '',
+                    status: 'pending',
+                    priority: 'high',
+                    tag: 'Pending Edit',
+                    dueAt: dueDate.toISOString(),
+                    createdAt: new Date().toISOString(),
+                });
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error marking booking as pending edit:', error);
+            throw error;
+        }
+    },
+
+    async rescheduleBooking(bookingId, { newDate, newStartTime, newEndTime, reason = '' }) {
+        try {
+            const startMins = toMinutes(newStartTime);
+            const endMins = toMinutes(newEndTime);
+            const durationMinutes = startMins !== null && endMins !== null ? Math.max(15, endMins - startMins) : null;
+            const patch = {
+                date: newDate,
+                startTime: newStartTime,
+                time: newStartTime,
+                endTime: newEndTime,
+                status: 'rescheduled',
+                rescheduleReason: reason,
+                rescheduledAt: new Date().toISOString(),
+                updatedAt: serverTimestamp(),
+            };
+            if (durationMinutes !== null) patch.durationMinutes = durationMinutes;
+            await updateDocument('bookings', bookingId, patch);
+            return { success: true };
+        } catch (error) {
+            console.error('Error rescheduling booking:', error);
             throw error;
         }
     },

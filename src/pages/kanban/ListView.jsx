@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 
-export const ListView = ({ columns, tasks }) => (
+export const ListView = ({ columns, tasks, onTaskClick }) => (
     <motion.div
         key="list"
         initial={{ opacity: 0 }}
@@ -23,7 +23,12 @@ export const ListView = ({ columns, tasks }) => (
                     </div>
                     <div className="grid grid-cols-1 gap-2 pl-5 border-l border-[#f4f2f4] dark:border-white/5">
                         {columnTasks.map(task => (
-                            <div key={task.id} className="flex items-center justify-between p-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl group hover:border-[#F26389] transition-all">
+                            <button
+                                key={task.id}
+                                type="button"
+                                onClick={() => onTaskClick?.(task)}
+                                className="flex items-center justify-between p-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl group hover:border-[#F26389] transition-all text-left w-full"
+                            >
                                 <div className="flex items-center gap-4">
                                     <div className="w-6 text-[8px] font-black opacity-20">{task.id}</div>
                                     <div>
@@ -32,7 +37,7 @@ export const ListView = ({ columns, tasks }) => (
                                     </div>
                                 </div>
                                 <ChevronRight size={14} className="text-[#b1b1b1] group-hover:translate-x-1 transition-transform" />
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </div>

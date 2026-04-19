@@ -1,13 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, LayoutDashboard, LayoutList, Plus } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, LayoutDashboard, LayoutList, Plus, Search, XCircle } from 'lucide-react';
 import clsx from 'clsx';
 import DailyListView from './DailyListView.jsx';
 import WeeklyGridView from './WeeklyGridView.jsx';
+import MonthView from './MonthView.jsx';
 import FilterDropdown from '../../components/dropdowns/FilterDropdown.jsx';
 import AddBookingModal from '../../components/modals/AddBookingModal.jsx';
-import ViewBookingModal from '../../components/modals/ViewBookingModal.jsx';
-import { BookingService, ServiceService } from '../../api/services.js';
+import BookingDetailsDrawer from '../../features/calendar/components/BookingDetailsDrawer.jsx';
+import RescheduleModal from '../../features/calendar/components/RescheduleModal.jsx';
+import CancelModal from '../../features/calendar/components/CancelModal.jsx';
+import { BookingService, CategoryService, ServiceService } from '../../api/services.js';
+import { CalendarBookingService } from '../../features/calendar/services/calendarBookingService.js';
+import { CalendarTaskService } from '../../features/calendar/services/calendarTaskService.js';
+import { ACTIVE_STATUSES, BOOKING_STATUSES } from '../../features/calendar/config/statuses.js';
 
 const formatLocalISODate = (date) => {
     const year = date.getFullYear();
@@ -110,15 +116,20 @@ const Schedules = () => {
     const [activeDay, setActiveDay] = useState(todayIso);
     const [rawBookings, setRawBookings] = useState([]);
     const [serviceCategoryMap, setServiceCategoryMap] = useState({});
+    const [categoryColorMap, setCategoryColorMap] = useState({});
     const [bookingModalOpen, setBookingModalOpen] = useState(false);
     const [bookingPrefillContext, setBookingPrefillContext] = useState(null);
     const [editingBooking, setEditingBooking] = useState(null);
-    const [viewBookingModalOpen, setViewBookingModalOpen] = useState(false);
+    const [drawerOpen, setDrawerOpen] = useState(false);
+    const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false);
+    const [cancelModalOpen, setCancelModalOpen] = useState(false);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState('All');
     const [rangeStart, setRangeStart] = useState('');
     const [rangeEnd, setRangeEnd] = useState('');
     const [currentWeekStart, setCurrentWeekStart] = useState(() => getStartOfWeekMonday(today));
+    const [cancelledPanelOpen, setCancelledPanelOpen] = useState(false);
+    const [cancelledSearch, setCancelledSearch] = useState('');
 
     useEffect(() => {
         const unsubscribe = BookingService.subscribeToBookings((bookings) => {
@@ -139,6 +150,18 @@ const Schedules = () => {
                     map[service.id] = service.category || 'Uncategorized';
                 });
                 setServiceCategoryMap(map);
+            })
+            .catch(console.error);
+    }, []);
+
+    useEffect(() => {
+        CategoryService.getCategories()
+            .then((cats) => {
+                const map = {};
+                (cats || []).forEach((cat) => {
+                    if (cat?.name) map[cat.name] = cat.color || '#F26389';
+                });
+                setCategoryColorMap(map);
             })
             .catch(console.error);
     }, []);
@@ -236,14 +259,42 @@ const Schedules = () => {
         return ['All', ...Array.from(categorySet).sort((a, b) => a.localeCompare(b))];
     }, [appointments, serviceCategoryMap]);
 
+    // Only show active statuses (scheduled/pending_edit/rescheduled) in the calendar grid
     const filteredAppointments = useMemo(() => {
         return appointments.filter((appointment) => {
+            const isActive = ACTIVE_STATUSES.includes(appointment.status) ||
+                // also show bookings that pre-date the new status system (no status field)
+                (!appointment.status || appointment.status === 'confirmed');
+            if (!isActive) return false;
             const inCategory = selectedCategory === 'All' || appointment.category === selectedCategory;
             const inStartRange = !normalizedRange.start || appointment.fullDate >= formatLocalISODate(normalizedRange.start);
             const inEndRange = !normalizedRange.end || appointment.fullDate <= formatLocalISODate(normalizedRange.end);
             return inCategory && inStartRange && inEndRange;
         });
     }, [appointments, normalizedRange.end, normalizedRange.start, selectedCategory]);
+
+    // Derive cancelled bookings for the dedicated panel
+    const cancelledBookings = useMemo(() => {
+        const q = cancelledSearch.trim().toLowerCase();
+        return rawBookings
+            .filter((b) => b.status === BOOKING_STATUSES.CANCELLED)
+            .filter((b) => {
+                if (!q) return true;
+                return (
+                    (b.clientName || '').toLowerCase().includes(q) ||
+                    (b.serviceTitle || '').toLowerCase().includes(q) ||
+                    (b.staffName || '').toLowerCase().includes(q) ||
+                    (b.category || b.serviceCategory || '').toLowerCase().includes(q) ||
+                    (b.date || '').includes(q)
+                );
+            })
+            .sort((a, b) => {
+                // most recently cancelled first
+                const at = a.cancelledAt || a.updatedAt || '';
+                const bt = b.cancelledAt || b.updatedAt || '';
+                return bt.localeCompare(at);
+            });
+    }, [rawBookings, cancelledSearch]);
 
     const canGoPrev = useMemo(() => {
         if (!minWeekStart) return true;
@@ -257,14 +308,8 @@ const Schedules = () => {
 
     const monthLabel = useMemo(() => getWeekMonthLabel(fullWeek), [fullWeek]);
 
-    const staffColors = {
-        'Dr. Adams': { bg: 'bg-blue-500', border: 'border-blue-500/20', text: '#3b82f6' },
-        'Nurse Joy': { bg: 'bg-emerald-500', border: 'border-emerald-500/20', text: '#10b981' },
-        'Dr. Smith': { bg: 'bg-purple-500', border: 'border-purple-500/20', text: '#a855f7' },
-        'Jordan Smith': { bg: 'bg-indigo-500', border: 'border-indigo-500/20', text: '#6366f1' },
-        'Elena Rodriguez': { bg: 'bg-cyan-500', border: 'border-cyan-500/20', text: '#06b6d4' },
-        'Marcus Thompson': { bg: 'bg-pink-500', border: 'border-pink-500/20', text: '#ec4899' },
-        'Sarah Chen': { bg: 'bg-lime-500', border: 'border-lime-500/20', text: '#84cc16' }
+    const getCategoryColor = (categoryName) => {
+        return categoryColorMap[categoryName] || '#F26389';
     };
 
     const hours = Array.from({ length: 29 }, (_, index) => {
@@ -332,11 +377,12 @@ const Schedules = () => {
 
     const handleAppointmentClick = (appointment) => {
         setSelectedBooking(appointment);
-        setViewBookingModalOpen(true);
+        setDrawerOpen(true);
     };
 
     const handleEditBooking = (booking) => {
         setEditingBooking(booking);
+        setDrawerOpen(false);
         setBookingModalOpen(true);
     };
 
@@ -344,16 +390,51 @@ const Schedules = () => {
         // Bookings will automatically update via the subscription
     };
 
+    const handleMarkPendingEdit = useCallback(async (booking) => {
+        await CalendarBookingService.markPendingEdit(booking.id);
+        await CalendarTaskService.createPendingEditTask(booking);
+        setDrawerOpen(false);
+    }, []);
+
+    const handleComplete = useCallback(async (booking) => {
+        await CalendarBookingService.complete(booking.id);
+        setDrawerOpen(false);
+    }, []);
+
+    const handleOpenReschedule = useCallback((booking) => {
+        setSelectedBooking(booking);
+        setRescheduleModalOpen(true);
+    }, []);
+
+    const handleReschedule = useCallback(async (data) => {
+        if (!selectedBooking) return;
+        await CalendarBookingService.reschedule(selectedBooking.id, data);
+        setRescheduleModalOpen(false);
+        setDrawerOpen(false);
+    }, [selectedBooking]);
+
+    const handleOpenCancel = useCallback((booking) => {
+        setSelectedBooking(booking);
+        setCancelModalOpen(true);
+    }, []);
+
+    const handleCancel = useCallback(async (reason) => {
+        if (!selectedBooking) return;
+        await CalendarBookingService.cancel(selectedBooking.id, reason);
+        setCancelModalOpen(false);
+        setDrawerOpen(false);
+    }, [selectedBooking]);
+
     return (
-        <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden">
-            <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 relative z-20">
+        <div className="h-full min-h-0 bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-visible">
+            <header className="flex flex-col gap-4 mb-8 pb-6 border-b border-[#f4f2f4] dark:border-white/5 relative z-30">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={handlePrevWeek}
                             disabled={!canGoPrev}
-                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
+                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#767676] dark:text-[#a0a0a0] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
                             aria-label="Previous week"
                         >
                             <ChevronLeft size={14} />
@@ -362,14 +443,14 @@ const Schedules = () => {
                             type="button"
                             onClick={handleNextWeek}
                             disabled={!canGoNext}
-                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#b1b1b1] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
+                            className="h-9 w-9 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[#767676] dark:text-[#a0a0a0] disabled:opacity-40 disabled:cursor-not-allowed hover:border-[#F26389] hover:text-[#F26389] transition-all flex items-center justify-center"
                             aria-label="Next week"
                         >
                             <ChevronRight size={14} />
                         </button>
 
                         <div className="ml-1">
-                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#b1b1b1]">Week View</p>
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#767676] dark:text-[#a0a0a0]">{view === 'month' ? 'Month View' : 'Week View'}</p>
                             <p className="text-sm font-black tracking-tight text-[#2f3035] dark:text-white">{monthLabel}</p>
                         </div>
                     </div>
@@ -378,24 +459,35 @@ const Schedules = () => {
                         <div className="flex bg-[#f4f2f4] dark:bg-[#111] p-1 rounded-xl border border-[#f4f2f4] dark:border-white/10 shrink-0">
                             <button
                                 onClick={() => setView('day')}
-                                className={clsx('p-1.5 rounded-lg transition-all', view === 'day' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'day' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
+                                title="Day view"
                             >
                                 <LayoutList size={14} />
                             </button>
                             <button
                                 onClick={() => setView('week')}
-                                className={clsx('p-1.5 rounded-lg transition-all', view === 'week' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#b1b1b1]')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'week' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
+                                title="Week view"
                             >
                                 <LayoutDashboard size={14} />
                             </button>
+                            <button
+                                onClick={() => setView('month')}
+                                className={clsx('p-1.5 rounded-lg transition-all', view === 'month' ? 'bg-white dark:bg-white/10 shadow-sm text-[#F26389]' : 'text-[#767676] dark:text-[#a0a0a0]')}
+                                title="Month view"
+                            >
+                                <Calendar size={14} />
+                            </button>
                         </div>
 
-                        <FilterDropdown
-                            activeFilter={selectedCategory}
-                            onSelect={setSelectedCategory}
-                            align="right"
-                            options={categoryOptions}
-                        />
+                        <div className="relative z-50">
+                            <FilterDropdown
+                                activeFilter={selectedCategory}
+                                onSelect={setSelectedCategory}
+                                align="right"
+                                options={categoryOptions}
+                            />
+                        </div>
 
                         <button
                             onClick={handleOpenBookingModal}
@@ -407,14 +499,14 @@ const Schedules = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[#b1b1b1]">Date Range</label>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-[#767676] dark:text-[#a0a0a0]">Date Range</label>
                     <input
                         type="date"
                         value={rangeStart}
                         onChange={handleDateRangeStartChange}
                         className="h-9 px-3 bg-white dark:bg-[#111] border border-[#f4f2f4] dark:border-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest outline-none focus:border-[#F26389] transition-all"
                     />
-                    <span className="text-[#b1b1b1] text-xs font-black">to</span>
+                    <span className="text-[#767676] dark:text-[#a0a0a0] text-xs font-black">to</span>
                     <input
                         type="date"
                         value={rangeEnd}
@@ -428,7 +520,7 @@ const Schedules = () => {
                                 setRangeStart('');
                                 setRangeEnd('');
                             }}
-                            className="h-9 px-3 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-[#b1b1b1] hover:text-[#F26389] hover:border-[#F26389] transition-all"
+                            className="h-9 px-3 rounded-xl border border-[#e6e4e6] dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-[#767676] dark:text-[#a0a0a0] hover:text-[#F26389] hover:border-[#F26389] transition-all"
                         >
                             Clear
                         </button>
@@ -446,23 +538,152 @@ const Schedules = () => {
                             fullWeek={fullWeek}
                             hours={hours}
                             appointments={filteredAppointments}
-                            staffColors={staffColors}
+                            getCategoryColor={getCategoryColor}
                             onSlotClick={handleSlotClick}
                             onAppointmentClick={handleAppointmentClick}
                         />
-                    ) : (
+                    ) : view === 'week' ? (
                         <WeeklyGridView
                             key="week"
                             activeDay={activeDay}
                             fullWeek={fullWeek}
                             hours={hours}
                             appointments={filteredAppointments}
-                            staffColors={staffColors}
+                            getCategoryColor={getCategoryColor}
                             onSlotClick={handleSlotClick}
                             onAppointmentClick={handleAppointmentClick}
                         />
+                    ) : (
+                        <MonthView
+                            key="month"
+                            activeDay={activeDay}
+                            onSelectDay={(day) => {
+                                setActiveDay(day);
+                                setView('day');
+                            }}
+                            appointments={filteredAppointments}
+                            currentWeekStart={currentWeekStart}
+                            onPrevMonth={() => setCurrentWeekStart((prev) => {
+                                const d = new Date(prev);
+                                d.setMonth(d.getMonth() - 1);
+                                d.setDate(1);
+                                return d;
+                            })}
+                            onNextMonth={() => setCurrentWeekStart((prev) => {
+                                const d = new Date(prev);
+                                d.setMonth(d.getMonth() + 1);
+                                d.setDate(1);
+                                return d;
+                            })}
+                            getCategoryColor={getCategoryColor}
+                            todayIso={todayIso}
+                        />
                     )}
                 </AnimatePresence>
+            </div>
+
+            {/* ── Cancelled Bookings Panel ───────────────────────────────── */}
+            <div className="mt-6 border border-[#f4f2f4] dark:border-white/10 rounded-2xl overflow-hidden">
+                <button
+                    type="button"
+                    onClick={() => setCancelledPanelOpen((v) => !v)}
+                    className="w-full flex items-center justify-between px-5 py-3.5 bg-[#fdfcfc] dark:bg-[#0c0c0c] hover:bg-red-500/5 transition-colors"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                        <span className="text-xs font-black uppercase tracking-[0.18em] text-[#2f3035] dark:text-white">
+                            Cancelled Bookings
+                        </span>
+                        {cancelledBookings.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-600 dark:text-red-400 text-[9px] font-black">
+                                {cancelledBookings.length}
+                            </span>
+                        )}
+                    </div>
+                    {cancelledPanelOpen ? <ChevronUp size={14} className="text-[#b1b1b1]" /> : <ChevronDown size={14} className="text-[#b1b1b1]" />}
+                </button>
+
+                {cancelledPanelOpen && (
+                    <div className="border-t border-[#f4f2f4] dark:border-white/10 bg-white dark:bg-[#0c0c0c]">
+                        {/* Search bar */}
+                        <div className="px-5 py-3 border-b border-[#f4f2f4] dark:border-white/10">
+                            <div className="flex items-center gap-2 h-9 px-3 border border-[#e6e4e6] dark:border-white/10 rounded-xl bg-white dark:bg-[#111] focus-within:border-[#F26389] transition-all">
+                                <Search size={12} className="text-[#b1b1b1] shrink-0" />
+                                <input
+                                    type="text"
+                                    value={cancelledSearch}
+                                    onChange={(e) => setCancelledSearch(e.target.value)}
+                                    placeholder="Search client, service, staff, date…"
+                                    className="flex-1 bg-transparent text-[11px] font-bold outline-none text-[#2f3035] dark:text-white placeholder:text-[#b1b1b1]"
+                                />
+                                {cancelledSearch && (
+                                    <button type="button" onClick={() => setCancelledSearch('')}>
+                                        <XCircle size={12} className="text-[#b1b1b1] hover:text-[#F26389] transition-colors" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {cancelledBookings.length === 0 ? (
+                            <div className="px-5 py-8 text-center text-[11px] font-bold text-[#b1b1b1] uppercase tracking-widest">
+                                {cancelledSearch ? 'No matching cancelled bookings' : 'No cancelled bookings'}
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left">
+                                    <thead>
+                                        <tr className="border-b border-[#f4f2f4] dark:border-white/10">
+                                            {['Client', 'Date', 'Time', 'Service', 'Category', 'Staff', 'Cancelled At', 'Reason'].map((h) => (
+                                                <th key={h} className="px-4 py-2.5 text-[8px] font-black uppercase tracking-[0.18em] text-[#b1b1b1] whitespace-nowrap">
+                                                    {h}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {cancelledBookings.map((b) => {
+                                            const cancelledAt = b.cancelledAt
+                                                ? new Date(b.cancelledAt).toLocaleString()
+                                                : b.updatedAt
+                                                    ? (typeof b.updatedAt?.toDate === 'function'
+                                                        ? b.updatedAt.toDate().toLocaleString()
+                                                        : new Date(b.updatedAt).toLocaleString())
+                                                    : '—';
+                                            return (
+                                                <tr
+                                                    key={b.id}
+                                                    className="border-b border-[#f4f2f4] dark:border-white/5 last:border-0 hover:bg-red-500/5 transition-colors"
+                                                >
+                                                    <td className="px-4 py-3 text-xs font-black text-[#2f3035] dark:text-white whitespace-nowrap">{b.clientName || '—'}</td>
+                                                    <td className="px-4 py-3 text-xs font-bold text-[#767676] dark:text-[#a0a0a0] whitespace-nowrap">{b.date || '—'}</td>
+                                                    <td className="px-4 py-3 text-xs font-bold text-[#767676] dark:text-[#a0a0a0] whitespace-nowrap">
+                                                        {b.startTime && b.endTime ? `${b.startTime} – ${b.endTime}` : b.startTime || b.time || '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-xs font-bold text-[#767676] dark:text-[#a0a0a0] whitespace-nowrap">{b.serviceTitle || '—'}</td>
+                                                    <td className="px-4 py-3 whitespace-nowrap">
+                                                        {(b.category || b.serviceCategory) ? (
+                                                            <span
+                                                                className="px-2 py-0.5 rounded text-[8px] font-black uppercase text-white"
+                                                                style={{ backgroundColor: getCategoryColor(b.category || b.serviceCategory) }}
+                                                            >
+                                                                {b.category || b.serviceCategory}
+                                                            </span>
+                                                        ) : '—'}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-xs font-bold text-[#767676] dark:text-[#a0a0a0] whitespace-nowrap">{b.staffName || '—'}</td>
+                                                    <td className="px-4 py-3 text-xs font-bold text-[#767676] dark:text-[#a0a0a0] whitespace-nowrap">{cancelledAt}</td>
+                                                    <td className="px-4 py-3 text-xs text-[#767676] dark:text-[#a0a0a0] max-w-[200px]">
+                                                        <span className="line-clamp-2">{b.cancellationReason || '—'}</span>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <AddBookingModal
@@ -473,12 +694,30 @@ const Schedules = () => {
                 editingBooking={editingBooking}
             />
 
-            <ViewBookingModal
-                isOpen={viewBookingModalOpen}
-                onClose={() => setViewBookingModalOpen(false)}
+            <BookingDetailsDrawer
+                isOpen={drawerOpen}
+                onClose={() => setDrawerOpen(false)}
                 booking={selectedBooking}
                 onEdit={handleEditBooking}
-                onDeleted={handleBookingDeleted}
+                onReschedule={handleOpenReschedule}
+                onCancel={handleOpenCancel}
+                onMarkPendingEdit={handleMarkPendingEdit}
+                onComplete={handleComplete}
+                onBookingUpdated={(updated) => setSelectedBooking(updated)}
+            />
+
+            <RescheduleModal
+                isOpen={rescheduleModalOpen}
+                onClose={() => setRescheduleModalOpen(false)}
+                onReschedule={handleReschedule}
+                booking={selectedBooking}
+            />
+
+            <CancelModal
+                isOpen={cancelModalOpen}
+                onClose={() => setCancelModalOpen(false)}
+                onCancel={handleCancel}
+                booking={selectedBooking}
             />
         </div>
     );

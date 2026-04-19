@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     UserPlus, Shield, Search, Plus, Key,
-    Send, MoreHorizontal, ChevronLeft, ChevronRight, CheckCircle2
+    Send, ChevronLeft, ChevronRight, CheckCircle2, Pencil, Trash2
 } from 'lucide-react';
 import clsx from 'clsx';
 import { StaffService } from '../api/services.js';
@@ -12,6 +12,8 @@ const StaffManagement = () => {
     const [staffData, setStaffData] = useState([]);
     const [isLoadingStaff, setIsLoadingStaff] = useState(true);
     const [staffModalOpen, setStaffModalOpen] = useState(false);
+    const [editingStaff, setEditingStaff] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
     
     useEffect(() => {
         StaffService.getStaff().then(data => {
@@ -27,6 +29,24 @@ const StaffManagement = () => {
         StaffService.getStaff().then(data => {
             setStaffData(data);
         });
+    };
+
+    const handleEditStaff = (member) => {
+        setEditingStaff(member);
+        setStaffModalOpen(true);
+    };
+
+    const handleDeleteStaff = async (member) => {
+        if (!window.confirm(`Delete ${member.name}? This cannot be undone.`)) return;
+        setDeletingId(member.id);
+        try {
+            await StaffService.deleteStaffMember(member.id);
+            setStaffData((prev) => prev.filter((s) => s.id !== member.id));
+        } catch (err) {
+            alert(`Failed to delete: ${err.message}`);
+        } finally {
+            setDeletingId(null);
+        }
     };
     return (
         <div className="h-screen max-h-screen bg-[#fdfcfc] dark:bg-[#080808] text-[#2f3035] dark:text-[#fdfcfc] p-4 lg:p-6 flex flex-col overflow-hidden font-sans">
@@ -45,7 +65,7 @@ const StaffManagement = () => {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={() => setStaffModalOpen(true)} className="h-9 px-4 bg-[#F26389] text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-lg shadow-[#F26389]/20 active:scale-95 transition-all">
+                    <button onClick={() => { setEditingStaff(null); setStaffModalOpen(true); }} className="h-9 px-4 bg-[#F26389] text-white rounded-xl font-black text-[9px] uppercase tracking-[0.2em] flex items-center gap-2 shadow-lg shadow-[#F26389]/20 active:scale-95 transition-all">
                         <UserPlus size={14} strokeWidth={3} /> <span className="hidden md:inline">Invite Member</span>
                     </button>
                 </div>
@@ -111,9 +131,23 @@ const StaffManagement = () => {
                         </div>
 
                         {/* 5. Cmd */}
-                        <div className="w-16 flex justify-end">
-                            <button className="p-2 text-[#b1b1b1] hover:text-[#2f3035] dark:hover:text-white transition-colors">
-                                <MoreHorizontal size={18} />
+                        <div className="w-20 flex justify-end gap-1">
+                            <button
+                                type="button"
+                                onClick={() => handleEditStaff(member)}
+                                className="p-2 rounded-lg text-[#767676] hover:text-[#F26389] hover:bg-[#F26389]/5 transition-all"
+                                title="Edit"
+                            >
+                                <Pencil size={14} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleDeleteStaff(member)}
+                                disabled={deletingId === member.id}
+                                className="p-2 rounded-lg text-[#767676] hover:text-red-500 hover:bg-red-500/5 transition-all disabled:opacity-40"
+                                title="Delete"
+                            >
+                                <Trash2 size={14} />
                             </button>
                         </div>
                     </motion.div>
@@ -155,8 +189,12 @@ const StaffManagement = () => {
             {/* Add Staff Modal */}
             <AddStaffModal
                 isOpen={staffModalOpen}
-                onClose={() => setStaffModalOpen(false)}
+                onClose={() => {
+                    setStaffModalOpen(false);
+                    setEditingStaff(null);
+                }}
                 onSuccess={handleRefreshStaff}
+                initialData={editingStaff}
             />
         </div>
     );

@@ -1,284 +1,223 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronRight, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { DayPicker } from 'react-day-picker';
+import 'react-day-picker/style.css';
 import { ServiceService, StaffService, BookingService, CategoryService } from '../../api/services';
 
-const HOUR_OPTIONS = Array.from({ length: 15 }, (_, index) => {
-    const hour = index + 7;
-    return String(hour).padStart(2, '0');
-});
-
-const MINUTE_OPTIONS = ['00', '15', '30', '45'];
+// Slots: 6:00 AM – 10:00 PM, every 30 mins
+const HOURS = Array.from({ length: 16 }, (_, i) => String(i + 6).padStart(2, '0')); // 06–21
+const MINUTES = ['00', '30'];
 const BOOKING_SOURCES = ['Walk-in', 'Messenger'];
+const INACTIVE_STATUSES = ['Cancelled', 'cancelled', 'completed', 'Completed'];
 
-const MONTH_OPTIONS = [
-    { value: '01', label: 'Jan' },
-    { value: '02', label: 'Feb' },
-    { value: '03', label: 'Mar' },
-    { value: '04', label: 'Apr' },
-    { value: '05', label: 'May' },
-    { value: '06', label: 'Jun' },
-    { value: '07', label: 'Jul' },
-    { value: '08', label: 'Aug' },
-    { value: '09', label: 'Sep' },
-    { value: '10', label: 'Oct' },
-    { value: '11', label: 'Nov' },
-    { value: '12', label: 'Dec' }
-];
-
-const DAY_OPTIONS = Array.from({ length: 31 }, (_, index) => String(index + 1).padStart(2, '0'));
-const YEAR_OPTIONS = Array.from({ length: 5 }, (_, index) => String(new Date().getFullYear() + index));
-
-const getNearestAllowedTime = (date = new Date()) => {
-    let hour = date.getHours();
-    let minutes = date.getMinutes();
-
-    if (minutes < 15) {
-        minutes = 0;
-    } else if (minutes < 45) {
-        minutes = 30;
-    } else {
-        minutes = 0;
-        hour += 1;
-    }
-
-    if (hour < 7) {
-        hour = 7;
-        minutes = 0;
-    }
-    if (hour > 21) {
-        hour = 21;
-        minutes = 0;
-    }
-
-    return {
-        hour: String(hour).padStart(2, '0'),
-        minute: String(minutes).padStart(2, '0')
-    };
+const timeToMinutes = (t) => {
+    if (!t || !String(t).includes(':')) return null;
+    const [h, m] = String(t).split(':').map(Number);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
 };
 
-export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = null, editingBooking = null }) => {
-    const now = new Date();
-    const isEditMode = Boolean(editingBooking);
+const minutesToTime = (total) => {
+    const v = Math.max(0, Math.min(22 * 60, Math.round(Number(total) || 0)));
+    return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`;
+};
 
-    const [formData, setFormData] = useState({
+const formatLocalISO = (d) => {
+    if (!d || !(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const parseLocalISO = (s) => {
+    if (!s || typeof s !== 'string') return null;
+    const parts = s.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    return Number.isNaN(d.getTime()) ? null : d;
+};
+
+// Sanitize addon rows: trim strings, default numerics to 0, drop empty rows
+const sanitizeAddons = (addons) =>
+    addons
+        .map((a) => ({
+            ...a,
+            name: (a.name || '').trim(),
+            price: Number(a.price) || 0,
+            minutes: Number(a.minutes) || 0,
+            qty: Math.max(1, Number(a.qty) || 1),
+        }))
+        .filter((a) => a.name !== '' || a.price > 0 || a.minutes > 0);
+
+export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = null, editingBooking = null }) => {
+    const isEdit = Boolean(editingBooking);
+    const now = new Date();
+
+    const [categories, setCategories] = useState([]);
+    const [services, setServices] = useState([]);
+    const [filteredServices, setFilteredServices] = useState([]);
+    const [staff, setStaff] = useState([]);
+    const [selectedService, setSelectedService] = useState(null);
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [form, setForm] = useState({
         clientName: '',
         clientContact: '',
         clientEmail: '',
         bookingSource: 'Walk-in',
         categoryId: '',
         serviceId: '',
-        month: String(now.getMonth() + 1).padStart(2, '0'),
-        day: String(now.getDate()).padStart(2, '0'),
-        year: String(now.getFullYear()),
         hour: '09',
         minute: '00',
         endHour: '10',
         endMinute: '00',
         useCustomEndTime: false,
         staffId: '',
-        selectedAddons: {}
+        selectedAddons: {},
     });
     const [customAddons, setCustomAddons] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [services, setServices] = useState([]);
-    const [filteredServices, setFilteredServices] = useState([]);
-    const [staff, setStaff] = useState([]);
-    const [selectedService, setSelectedService] = useState(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [overlapWarning, setOverlapWarning] = useState('');
     const [error, setError] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [allBookings, setAllBookings] = useState([]);
 
-    const toMinutes = (hour, minute) => (Number(hour) * 60) + Number(minute);
-    const toTimeParts = (totalMinutes) => {
-        const hour = Math.floor(totalMinutes / 60);
-        const minute = totalMinutes % 60;
-        return {
-            hour: String(hour).padStart(2, '0'),
-            minute: String(minute).padStart(2, '0')
-        };
-    };
-    const addMinutesToTime = (hour, minute, addMinutes) => {
-        const baseMinutes = toMinutes(hour, minute);
-        const next = Math.min(baseMinutes + addMinutes, 23 * 60 + 59);
-        return toTimeParts(next);
-    };
+    const set = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
+    const servicesRef = useRef(services);
+    const categoriesRef = useRef(categories);
+    useEffect(() => { servicesRef.current = services; }, [services]);
+    useEffect(() => { categoriesRef.current = categories; }, [categories]);
+
+    // Load reference data when modal opens
     useEffect(() => {
-        if (isOpen) {
-            CategoryService.getCategories().then(setCategories).catch(console.error);
-            ServiceService.getServices().then(setServices).catch(console.error);
-            StaffService.getStaff().then(setStaff).catch(console.error);
-        }
+        if (!isOpen) return;
+        CategoryService.getCategories().then(setCategories).catch(console.error);
+        ServiceService.getServices().then(setServices).catch(console.error);
+        StaffService.getStaff().then(setStaff).catch(console.error);
+        BookingService.getBookings().then(setAllBookings).catch(console.error);
     }, [isOpen]);
 
-    // Populate form when editing
+    // Populate form when editing or when prefill context changes
     useEffect(() => {
-        if (!isOpen || !editingBooking) return;
+        if (!isOpen) return;
 
-        const bookingDate = editingBooking.date ? new Date(editingBooking.date) : new Date();
-        const [startHour = '09', startMinute = '00'] = (editingBooking.startTime || editingBooking.time || '09:00').split(':');
-        const [endHour = '10', endMinute = '00'] = (editingBooking.endTime || '10:00').split(':');
+        if (isEdit && editingBooking) {
+            const d = parseLocalISO(editingBooking.date) || now;
+            setSelectedDate(d);
+            const [sh = '09', sm = '00'] = (editingBooking.startTime || editingBooking.time || '09:00').split(':');
+            const [eh = '10', em = '00'] = (editingBooking.endTime || '10:00').split(':');
+            const svc = servicesRef.current.find((s) => s.id === editingBooking.serviceId);
+            const cat = categoriesRef.current.find((c) => c.name === svc?.category);
+            setForm({
+                clientName: editingBooking.clientName || '',
+                clientContact: editingBooking.clientContact || '',
+                clientEmail: editingBooking.clientEmail || '',
+                bookingSource: editingBooking.bookingSource || 'Walk-in',
+                categoryId: cat?.id || '',
+                serviceId: editingBooking.serviceId || '',
+                hour: sh.padStart(2, '0'),
+                minute: sm.padStart(2, '0'),
+                endHour: eh.padStart(2, '0'),
+                endMinute: em.padStart(2, '0'),
+                useCustomEndTime: true,
+                staffId: editingBooking.staffId || '',
+                selectedAddons: (editingBooking.selectedAddons || []).reduce((acc, x) => ({ ...acc, [x.id]: true }), {}),
+            });
+            setCustomAddons(
+                (editingBooking.customAddons || []).map((a) => ({
+                    id: a.id || `c-${Date.now()}-${Math.random()}`,
+                    name: a.name || '',
+                    price: Number(a.price) || 0,
+                    minutes: Number(a.minutes) || 0,
+                    qty: Math.max(1, Number(a.qty) || 1),
+                }))
+            );
+        } else {
+            const prefillISO = prefillContext
+                ? `${prefillContext.year}-${prefillContext.month}-${prefillContext.day}`
+                : null;
+            const d = (prefillISO && parseLocalISO(prefillISO)) || now;
+            setSelectedDate(d);
+            const ph = (prefillContext?.hour || '09').padStart(2, '0');
+            const pm = (prefillContext?.minute || '00').padStart(2, '0');
+            setForm((prev) => ({
+                ...prev,
+                hour: ph,
+                minute: pm,
+                clientName: '',
+                clientContact: '',
+                clientEmail: '',
+                bookingSource: 'Walk-in',
+                categoryId: '',
+                serviceId: '',
+                useCustomEndTime: false,
+                staffId: '',
+                selectedAddons: {},
+            }));
+            setCustomAddons([]);
+        }
+        setError('');
+        setOverlapWarning('');
+    }, [isOpen, isEdit, editingBooking?.id, prefillContext]); // eslint-disable-line react-hooks/exhaustive-deps
 
-        // Find the category ID based on service
-        const service = services.find(s => s.id === editingBooking.serviceId);
-        const category = categories.find(c => c.name === service?.category);
-
-        setFormData({
-            clientName: editingBooking.clientName || '',
-            clientContact: editingBooking.clientContact || '',
-            clientEmail: editingBooking.clientEmail || '',
-            bookingSource: editingBooking.bookingSource || 'Walk-in',
-            categoryId: category?.id || '',
-            serviceId: editingBooking.serviceId || '',
-            month: String(bookingDate.getMonth() + 1).padStart(2, '0'),
-            day: String(bookingDate.getDate()).padStart(2, '0'),
-            year: String(bookingDate.getFullYear()),
-            hour: String(startHour).padStart(2, '0'),
-            minute: String(startMinute).padStart(2, '0'),
-            endHour: String(endHour).padStart(2, '0'),
-            endMinute: String(endMinute).padStart(2, '0'),
-            useCustomEndTime: false,
-            staffId: editingBooking.staffId || '',
-            selectedAddons: (editingBooking.selectedAddons || []).reduce((acc, addon) => {
-                acc[addon.id] = true;
-                return acc;
-            }, {})
-        });
-
-        setCustomAddons(editingBooking.customAddons || []);
-    }, [isOpen, editingBooking, services, categories]);
-
+    // Filter services by selected category
     useEffect(() => {
-        if (!isOpen || !prefillContext) return;
-
-        setFormData(prev => ({
-            ...prev,
-            month: prefillContext.month || prev.month,
-            day: prefillContext.day || prev.day,
-            year: prefillContext.year || prev.year,
-            hour: prefillContext.hour || prev.hour,
-            minute: prefillContext.minute || prev.minute
-        }));
-    }, [isOpen, prefillContext]);
-
-    useEffect(() => {
-        // Filter services by selected category
-        if (formData.categoryId && services.length > 0) {
-            const selectedCategory = categories.find(c => c.id === formData.categoryId);
-            if (selectedCategory) {
-                const filtered = services.filter(s => s.category === selectedCategory.name);
-                setFilteredServices(filtered);
-            } else {
-                setFilteredServices([]);
-            }
+        if (form.categoryId && categories.length) {
+            const cat = categories.find((c) => c.id === form.categoryId);
+            setFilteredServices(cat ? services.filter((s) => s.category === cat.name) : []);
         } else {
             setFilteredServices([]);
         }
-    }, [formData.categoryId, services, categories]);
+    }, [form.categoryId, services, categories]);
+
+    // Resolve selected service object
     useEffect(() => {
-        if (formData.serviceId && services.length > 0) {
-            const service = services.find(s => s.id === formData.serviceId);
-            setSelectedService(service || null);
-            return;
-        }
-        setSelectedService(null);
-    }, [formData.serviceId, services]);
+        setSelectedService(form.serviceId ? services.find((s) => s.id === form.serviceId) || null : null);
+    }, [form.serviceId, services]);
 
+    // Auto-compute end time based on service duration + custom addon durations
     useEffect(() => {
-        if (!isOpen || formData.useCustomEndTime) return;
+        if (form.useCustomEndTime) return;
+        const baseDur = Number(selectedService?.durationMinutes) || 60;
+        const extraDur = sanitizeAddons(customAddons).reduce((s, a) => s + (a.minutes || 0) * (a.qty || 1), 0);
+        const startMins = timeToMinutes(`${form.hour}:${form.minute}`);
+        if (startMins === null) return;
+        const endTotal = Math.min(startMins + baseDur + extraDur, 22 * 60);
+        const [eh, em] = minutesToTime(endTotal).split(':');
+        setForm((prev) => ({ ...prev, endHour: eh, endMinute: em }));
+    }, [form.hour, form.minute, form.useCustomEndTime, selectedService, customAddons]);
 
-        const durationMinutes = Number(selectedService?.durationMinutes) || 60;
-        const computed = addMinutesToTime(formData.hour, formData.minute, durationMinutes);
-        setFormData((prev) => ({
-            ...prev,
-            endHour: computed.hour,
-            endMinute: computed.minute
-        }));
-    }, [formData.hour, formData.minute, formData.useCustomEndTime, isOpen, selectedService]);
+    // Overlap warning (non-blocking)
+    useEffect(() => {
+        if (!selectedDate || !form.staffId) { setOverlapWarning(''); return; }
+        const iso = formatLocalISO(selectedDate);
+        const newStart = timeToMinutes(`${form.hour}:${form.minute}`);
+        const newEnd = timeToMinutes(`${form.endHour}:${form.endMinute}`);
+        if (newStart === null || newEnd === null || newEnd <= newStart) { setOverlapWarning(''); return; }
 
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        
-        // If changing category, reset service selection
-        if (name === 'categoryId') {
-            setFormData(prev => ({
-                ...prev,
-                [name]: value,
-                serviceId: '',
-                selectedAddons: {}
-            }));
-            setSelectedService(null);
-        } else {
-            setFormData(prev => ({
-                ...prev,
-                [name]: value
-            }));
-        }
-    };
-
-    const handleAddonToggle = (addonId) => {
-        setFormData(prev => ({
-            ...prev,
-            selectedAddons: {
-                ...prev.selectedAddons,
-                [addonId]: !prev.selectedAddons[addonId]
-            }
-        }));
-    };
-
-    const handleServiceSelection = (serviceId) => {
-        setFormData(prev => ({
-            ...prev,
-            serviceId,
-            selectedAddons: {}
-        }));
-    };
-
-    const handleSetToday = () => {
-        const today = new Date();
-        const { hour, minute } = getNearestAllowedTime(today);
-
-        setFormData(prev => ({
-            ...prev,
-            month: String(today.getMonth() + 1).padStart(2, '0'),
-            day: String(today.getDate()).padStart(2, '0'),
-            year: String(today.getFullYear()),
-            hour,
-            minute
-        }));
-    };
-
-    const handleAddCustomAddon = () => {
-        const newId = `custom-${Date.now()}`;
-        setCustomAddons(prev => [...prev, { id: newId, name: '', price: 0 }]);
-    };
-
-    const handleCustomAddonChange = (index, field, value) => {
-        setCustomAddons(prev => {
-            const updated = [...prev];
-            updated[index] = {
-                ...updated[index],
-                [field]: field === 'price' ? parseFloat(value) || 0 : value
-            };
-            return updated;
+        const conflicts = allBookings.filter((b) => {
+            if (editingBooking && b.id === editingBooking.id) return false;
+            if (b.date !== iso || b.staffId !== form.staffId) return false;
+            if (INACTIVE_STATUSES.includes(b.status)) return false;
+            const bStart = timeToMinutes(b.startTime || b.time);
+            const bEnd = timeToMinutes(b.endTime) ?? (bStart !== null ? bStart + (Number(b.durationMinutes) || 60) : null);
+            if (bStart === null || bEnd === null) return false;
+            return newStart < bEnd && newEnd > bStart;
         });
-    };
 
-    const handleRemoveCustomAddon = (index) => {
-        setCustomAddons(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const calculateTotal = () => {
-        let total = selectedService?.basePrice || 0;
-        if (selectedService?.addons) {
-            selectedService.addons.forEach(addon => {
-                if (formData.selectedAddons[addon.id]) {
-                    total += addon.defaultPrice || 0;
-                }
-            });
+        if (conflicts.length) {
+            const names = conflicts.map((b) => b.clientName || 'Unknown').join(', ');
+            setOverlapWarning(`Overlap with: ${names}. You can still save — please verify.`);
+        } else {
+            setOverlapWarning('');
         }
-        customAddons.forEach(addon => {
-            total += addon.price || 0;
+    }, [selectedDate, form.staffId, form.hour, form.minute, form.endHour, form.endMinute, allBookings, editingBooking]);
+
+    const calcTotal = () => {
+        let total = selectedService?.basePrice || 0;
+        (selectedService?.addons || []).forEach((a) => {
+            if (form.selectedAddons[a.id]) total += a.defaultPrice || 0;
+        });
+        sanitizeAddons(customAddons).forEach((a) => {
+            total += (a.price || 0) * (a.qty || 1);
         });
         return total;
     };
@@ -286,94 +225,109 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+
+        if (!selectedDate) {
+            setError('Please select a date.');
+            return;
+        }
+        const startTime = `${form.hour}:${form.minute}`;
+        const endTime = `${form.endHour}:${form.endMinute}`;
+        if (timeToMinutes(endTime) <= timeToMinutes(startTime)) {
+            setError('End time must be after start time.');
+            return;
+        }
+
         setIsSubmitting(true);
-
         try {
-            const effectiveDate = `${formData.year}-${formData.month}-${formData.day}`;
-            const day = formData.day;
-            const startTime = `${formData.hour}:${formData.minute}`;
-            const endTime = `${formData.endHour}:${formData.endMinute}`;
+            const sanitizedCustom = sanitizeAddons(customAddons);
 
-            if (toMinutes(formData.endHour, formData.endMinute) <= toMinutes(formData.hour, formData.minute)) {
-                throw new Error('End time must be later than start time');
-            }
-
-            const selectedAddonsArray = Object.keys(formData.selectedAddons)
-                .filter(addonId => formData.selectedAddons[addonId])
-                .map(addonId => {
-                    const addon = selectedService?.addons.find(a => a.id === addonId);
+            // Build preset addons array
+            const presetAddons = Object.keys(form.selectedAddons)
+                .filter((id) => form.selectedAddons[id])
+                .map((id) => {
+                    const a = selectedService?.addons?.find((x) => x.id === id);
                     return {
-                        id: addonId,
-                        name: addon?.name || '',
-                        price: addon?.defaultPrice || 0,
-                        type: 'preset'
+                        id,
+                        name: a?.name || '',
+                        price: a?.defaultPrice || 0,
+                        minutes: a?.minutes || 0,
+                        qty: 1,
+                        subtotal: a?.defaultPrice || 0,
+                        durationSubtotal: a?.minutes || 0,
+                        type: 'preset',
                     };
                 });
 
-            const customAddonsArray = customAddons
-                .filter(addon => addon.name.trim())
-                .map(addon => ({
-                    id: addon.id,
-                    name: addon.name.trim(),
-                    price: addon.price,
-                    type: 'custom'
-                }));
+            // Build custom addons array
+            const customAddonsPayload = sanitizedCustom.map((a) => ({
+                id: a.id,
+                name: a.name,
+                price: a.price,
+                minutes: a.minutes,
+                qty: a.qty,
+                subtotal: (a.price || 0) * (a.qty || 1),
+                durationSubtotal: (a.minutes || 0) * (a.qty || 1),
+                type: 'custom',
+            }));
 
-            const bookingData = {
-                clientName: formData.clientName.trim(),
-                clientContact: formData.clientContact.trim(),
-                clientEmail: formData.clientEmail.trim(),
-                bookingSource: formData.bookingSource,
-                serviceId: formData.serviceId,
+            const allAddons = [...presetAddons, ...customAddonsPayload];
+            const effectiveDate = formatLocalISO(selectedDate);
+            const durationMinutes = Math.max(15, timeToMinutes(endTime) - timeToMinutes(startTime));
+
+            const payload = {
+                clientName: form.clientName.trim(),
+                clientContact: form.clientContact.trim(),
+                clientEmail: form.clientEmail.trim(),
+                bookingSource: form.bookingSource,
+                serviceId: form.serviceId,
                 serviceTitle: selectedService?.title || '',
                 date: effectiveDate,
-                day,
+                day: String(selectedDate.getDate()),
                 time: startTime,
                 startTime,
                 endTime,
                 serviceDurationMinutes: Number(selectedService?.durationMinutes) || 60,
-                staffId: formData.staffId,
-                staffName: staff.find(s => s.id === formData.staffId)?.name || '',
-                totalPrice: calculateTotal(),
-                selectedAddons: selectedAddonsArray,
-                customAddons: customAddonsArray,
-                status: isEditMode ? (editingBooking.status || 'Confirmed') : 'Confirmed'
+                durationMinutes,
+                staffId: form.staffId,
+                staffName: staff.find((s) => s.id === form.staffId)?.name || '',
+                totalPrice: calcTotal(),
+                addons: allAddons,
+                selectedAddons: presetAddons,
+                customAddons: customAddonsPayload,
+                status: isEdit ? (editingBooking.status || 'Confirmed') : 'Confirmed',
             };
 
-            if (isEditMode) {
-                await BookingService.updateBooking(editingBooking.id, bookingData);
+            if (isEdit) {
+                await BookingService.updateBooking(editingBooking.id, payload);
             } else {
-                await BookingService.createBooking(bookingData);
+                await BookingService.createBooking(payload);
             }
 
-            const resetDate = new Date();
-            setFormData({
-                clientName: '',
-                clientContact: '',
-                clientEmail: '',
-                bookingSource: 'Walk-in',
-                serviceId: '',
-                month: String(resetDate.getMonth() + 1).padStart(2, '0'),
-                day: String(resetDate.getDate()).padStart(2, '0'),
-                year: String(resetDate.getFullYear()),
-                hour: '09',
-                minute: '00',
-                endHour: '10',
-                endMinute: '00',
-                useCustomEndTime: false,
-                staffId: '',
-                selectedAddons: {}
+            // Reset form
+            setForm({
+                clientName: '', clientContact: '', clientEmail: '',
+                bookingSource: 'Walk-in', categoryId: '', serviceId: '',
+                hour: '09', minute: '00', endHour: '10', endMinute: '00',
+                useCustomEndTime: false, staffId: '', selectedAddons: {},
             });
             setCustomAddons([]);
+            setSelectedDate(null);
             setSelectedService(null);
+            setError('');
+            setOverlapWarning('');
             onSuccess?.();
             onClose();
         } catch (err) {
-            setError(err.message || `Failed to ${isEditMode ? 'update' : 'create'} booking`);
+            console.error('Booking submit error:', err);
+            setError(err.message || `Failed to ${isEdit ? 'update' : 'create'} booking`);
+            // Modal stays open, form data preserved
         } finally {
             setIsSubmitting(false);
         }
     };
+
+    const inputCls = 'w-full px-3 py-2 border border-[#e6e4e6] dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] text-sm transition-colors';
+    const selectCls = inputCls;
 
     return (
         <AnimatePresence>
@@ -389,361 +343,320 @@ export const AddBookingModal = ({ isOpen, onClose, onSuccess, prefillContext = n
                         initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
                         exit={{ scale: 0.95, opacity: 0 }}
-                        onClick={e => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
                         className="bg-white dark:bg-[#111] rounded-2xl max-w-4xl w-full p-6 max-h-[90vh] overflow-y-auto"
                     >
+                        {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <h2 className="text-lg font-black uppercase tracking-wide">
-                                {isEditMode ? 'Edit Booking' : 'New Booking'}
+                                {isEdit ? 'Edit Booking' : 'New Booking'}
                             </h2>
                             <button onClick={onClose} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-all">
                                 <X size={20} />
                             </button>
                         </div>
 
+                        {/* Top error banner */}
                         {error && (
-                            <div className="mb-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-600 text-sm">
+                            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/40 rounded-xl text-red-600 text-sm font-bold">
                                 {error}
                             </div>
                         )}
 
                         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* LEFT COLUMN: Client + Date */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-black uppercase tracking-wide text-gray-600 dark:text-gray-400">Profiling</h3>
+                                <h3 className="text-xs font-black uppercase tracking-[0.15em] text-[#b1b1b1]">Client</h3>
 
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Client Name</label>
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Client Name <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
-                                        name="clientName"
-                                        value={formData.clientName}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                        placeholder="John Doe"
+                                        value={form.clientName}
+                                        onChange={(e) => set('clientName', e.target.value)}
+                                        required
+                                        placeholder="Jane Doe"
+                                        className={inputCls}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Contact Number</label>
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Contact Number</label>
                                     <input
                                         type="tel"
-                                        name="clientContact"
-                                        value={formData.clientContact}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
+                                        value={form.clientContact}
+                                        onChange={(e) => set('clientContact', e.target.value)}
                                         placeholder="+63 9XX XXX XXXX"
+                                        className={inputCls}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Client Email</label>
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Email</label>
                                     <input
                                         type="email"
-                                        name="clientEmail"
-                                        value={formData.clientEmail}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                        placeholder="client@email.com"
+                                        value={form.clientEmail}
+                                        onChange={(e) => set('clientEmail', e.target.value)}
+                                        placeholder="client@example.com"
+                                        className={inputCls}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Booked Via</label>
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Booked Via</label>
                                     <select
-                                        name="bookingSource"
-                                        value={formData.bookingSource}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
+                                        value={form.bookingSource}
+                                        onChange={(e) => set('bookingSource', e.target.value)}
+                                        className={selectCls}
                                     >
-                                        {BOOKING_SOURCES.map(source => (
-                                            <option key={source} value={source}>{source}</option>
-                                        ))}
+                                        {BOOKING_SOURCES.map((s) => <option key={s}>{s}</option>)}
                                     </select>
+                                </div>
+
+                                {/* Date: react-day-picker calendar */}
+                                <div>
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Date <span className="text-red-500">*</span></label>
+                                    <div className="border border-[#e6e4e6] dark:border-white/10 rounded-xl overflow-hidden p-1 bg-white dark:bg-[#0c0c0c]">
+                                        <style>{`
+                                            .rdp-root { --rdp-accent-color: #F26389; --rdp-accent-background-color: #F2638920; }
+                                        `}</style>
+                                        <DayPicker
+                                            mode="single"
+                                            selected={selectedDate}
+                                            onSelect={setSelectedDate}
+                                            showOutsideDays
+                                        />
+                                    </div>
+                                    {selectedDate && (
+                                        <p className="mt-1.5 text-xs font-bold text-[#F26389]">
+                                            {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
+                            {/* RIGHT COLUMN: Service, Time, Staff, Add-ons */}
                             <div className="space-y-4">
-                                <h3 className="text-sm font-black uppercase tracking-wide text-gray-600 dark:text-gray-400">Service & Schedule</h3>
+                                <h3 className="text-xs font-black uppercase tracking-[0.15em] text-[#b1b1b1]">Service &amp; Schedule</h3>
 
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Category</label>
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Category</label>
                                     <select
-                                        name="categoryId"
-                                        value={formData.categoryId}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
+                                        value={form.categoryId}
+                                        onChange={(e) => { set('categoryId', e.target.value); set('serviceId', ''); set('selectedAddons', {}); }}
+                                        className={selectCls}
                                     >
-                                        <option value="">Select a category first</option>
-                                        {categories.map(category => (
-                                            <option key={category.id} value={category.id}>
-                                                {category.name}
-                                            </option>
-                                        ))}
+                                        <option value="">Select category</option>
+                                        {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Service</label>
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Service</label>
                                     <select
-                                        name="serviceId"
-                                        value={formData.serviceId}
-                                        onChange={handleInputChange}
-                                        disabled={!formData.categoryId}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                        value={form.serviceId}
+                                        onChange={(e) => { set('serviceId', e.target.value); set('selectedAddons', {}); }}
+                                        disabled={!form.categoryId}
+                                        className={`${selectCls} disabled:opacity-50 disabled:cursor-not-allowed`}
                                     >
-                                        <option value="">
-                                            {formData.categoryId ? 'Select a service' : 'Select category first'}
-                                        </option>
-                                        {filteredServices.map(service => (
-                                            <option key={service.id} value={service.id}>
-                                                {service.title} - ₱{service.basePrice?.toLocaleString()} ({service.duration})
+                                        <option value="">{form.categoryId ? 'Select service' : 'Select category first'}</option>
+                                        {filteredServices.map((s) => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.title} — ₱{s.basePrice?.toLocaleString()} ({s.duration})
                                             </option>
                                         ))}
                                     </select>
                                     {selectedService && (
-                                        <div className="mt-2 p-3 bg-[#F26389]/5 border border-[#F26389]/20 rounded-lg">
-                                            <p className="text-[11px] font-bold uppercase tracking-wider text-[#F26389]">
-                                                {selectedService.subcategory || selectedService.category} • {selectedService.duration}
-                                            </p>
-                                            <p className="text-sm font-black text-[#2f3035] dark:text-white mt-1">
-                                                ₱{selectedService.basePrice?.toLocaleString()}
-                                            </p>
-                                        </div>
+                                        <p className="mt-1.5 text-[10px] font-bold text-[#F26389] uppercase tracking-wider">
+                                            {selectedService.subcategory || selectedService.category} · {selectedService.duration} · ₱{selectedService.basePrice?.toLocaleString()}
+                                        </p>
                                     )}
                                 </div>
 
+                                {/* Start Time */}
                                 <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                        <label className="block text-sm font-bold uppercase">Date</label>
-                                        <button
-                                            type="button"
-                                            onClick={handleSetToday}
-                                            className="px-2 py-1 text-[11px] font-bold uppercase rounded-md border border-gray-300 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-                                        >
-                                            Today
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <select
-                                            name="month"
-                                            value={formData.month}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {MONTH_OPTIONS.map(option => (
-                                                <option key={option.value} value={option.value}>{option.label}</option>
-                                            ))}
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Start Time</label>
+                                    <div className="flex gap-2 items-center">
+                                        <select value={form.hour} onChange={(e) => set('hour', e.target.value)} className={`flex-1 ${selectCls}`}>
+                                            {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
                                         </select>
-                                        <select
-                                            name="day"
-                                            value={formData.day}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {DAY_OPTIONS.map(option => (
-                                                <option key={option} value={option}>{option}</option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            name="year"
-                                            value={formData.year}
-                                            onChange={handleInputChange}
-                                            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                        >
-                                            {YEAR_OPTIONS.map(option => (
-                                                <option key={option} value={option}>{option}</option>
-                                            ))}
+                                        <span className="text-[#b1b1b1] font-bold">:</span>
+                                        <select value={form.minute} onChange={(e) => set('minute', e.target.value)} className={`flex-1 ${selectCls}`}>
+                                            {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
                                         </select>
                                     </div>
                                 </div>
 
+                                {/* End Time */}
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Time</label>
-                                    <div className="flex gap-2">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-xs font-bold uppercase">End Time</label>
+                                        <label className="flex items-center gap-1.5 text-[10px] font-bold cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={form.useCustomEndTime}
+                                                onChange={(e) => set('useCustomEndTime', e.target.checked)}
+                                                className="accent-[#F26389]"
+                                            />
+                                            Override
+                                        </label>
+                                    </div>
+                                    <div className="flex gap-2 items-center">
                                         <select
-                                            name="hour"
-                                            value={formData.hour}
-                                            onChange={handleInputChange}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
+                                            value={form.endHour}
+                                            onChange={(e) => set('endHour', e.target.value)}
+                                            disabled={!form.useCustomEndTime}
+                                            className={`flex-1 ${selectCls} disabled:opacity-60`}
                                         >
-                                            {HOUR_OPTIONS.map(hour => (
-                                                <option key={hour} value={hour}>{hour}</option>
-                                            ))}
+                                            {HOURS.map((h) => <option key={h} value={h}>{h}</option>)}
                                         </select>
-                                        <span className="flex items-center text-gray-400">:</span>
+                                        <span className="text-[#b1b1b1] font-bold">:</span>
                                         <select
-                                            name="minute"
-                                            value={formData.minute}
-                                            onChange={handleInputChange}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
+                                            value={form.endMinute}
+                                            onChange={(e) => set('endMinute', e.target.value)}
+                                            disabled={!form.useCustomEndTime}
+                                            className={`flex-1 ${selectCls} disabled:opacity-60`}
                                         >
-                                            {MINUTE_OPTIONS.map(minute => (
-                                                <option key={minute} value={minute}>{minute}</option>
-                                            ))}
+                                            {MINUTES.map((m) => <option key={m} value={m}>{m}</option>)}
                                         </select>
                                     </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label className="flex items-center gap-2 text-sm font-bold uppercase">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.useCustomEndTime}
-                                            onChange={(event) => {
-                                                const enabled = event.target.checked;
-                                                setFormData((prev) => ({ ...prev, useCustomEndTime: enabled }));
-                                            }}
-                                            className="rounded accent-[#F26389]"
-                                        />
-                                        Override End Time
-                                    </label>
-
-                                    <div className="flex gap-2">
-                                        <select
-                                            name="endHour"
-                                            value={formData.endHour}
-                                            onChange={handleInputChange}
-                                            disabled={!formData.useCustomEndTime}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm disabled:opacity-60"
-                                        >
-                                            {HOUR_OPTIONS.map(hour => (
-                                                <option key={hour} value={hour}>{hour}</option>
-                                            ))}
-                                        </select>
-                                        <span className="flex items-center text-gray-400">:</span>
-                                        <select
-                                            name="endMinute"
-                                            value={formData.endMinute}
-                                            onChange={handleInputChange}
-                                            disabled={!formData.useCustomEndTime}
-                                            className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm disabled:opacity-60"
-                                        >
-                                            {MINUTE_OPTIONS.map(minute => (
-                                                <option key={minute} value={minute}>{minute}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                                        {formData.useCustomEndTime
-                                            ? 'Custom end time enabled.'
-                                            : `End time auto-computed from service duration (${selectedService?.duration || '1 hour'}).`}
+                                    <p className="mt-1 text-[10px] text-gray-500 dark:text-gray-400">
+                                        {form.useCustomEndTime
+                                            ? 'Custom end time.'
+                                            : `Auto from service duration (${selectedService?.duration || '1 hour'}).`}
                                     </p>
                                 </div>
 
+                                {/* Staff */}
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Staff</label>
-                                    <select
-                                        name="staffId"
-                                        value={formData.staffId}
-                                        onChange={handleInputChange}
-                                        className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
-                                    >
-                                        <option value="">Select staff member</option>
-                                        {staff.map(member => (
-                                            <option key={member.id} value={member.id}>
-                                                {member.name} ({member.role})
-                                            </option>
-                                        ))}
+                                    <label className="block text-xs font-bold uppercase mb-1.5">Staff</label>
+                                    <select value={form.staffId} onChange={(e) => set('staffId', e.target.value)} className={selectCls}>
+                                        <option value="">Select staff</option>
+                                        {staff.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
                                     </select>
                                 </div>
 
-                                {selectedService?.addons && selectedService.addons.length > 0 && (
-                                    <div className="pt-2 pb-2 border-t border-gray-200 dark:border-white/10">
-                                        <label className="block text-sm font-bold uppercase mb-3">Pre-set Add-ons</label>
-                                        <div className="space-y-2 max-h-32 overflow-y-auto">
-                                            {selectedService.addons.map(addon => (
-                                                <div key={addon.id} className="flex items-center gap-3">
+                                {/* Preset Add-ons */}
+                                {(selectedService?.addons || []).length > 0 && (
+                                    <div>
+                                        <label className="block text-xs font-bold uppercase mb-2">Pre-set Add-ons</label>
+                                        <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                            {selectedService.addons.map((a) => (
+                                                <label key={a.id} className="flex items-center gap-2 text-sm cursor-pointer">
                                                     <input
                                                         type="checkbox"
-                                                        id={addon.id}
-                                                        checked={formData.selectedAddons[addon.id] || false}
-                                                        onChange={() => handleAddonToggle(addon.id)}
-                                                        className="rounded accent-[#F26389]"
+                                                        checked={!!form.selectedAddons[a.id]}
+                                                        onChange={() => set('selectedAddons', { ...form.selectedAddons, [a.id]: !form.selectedAddons[a.id] })}
+                                                        className="accent-[#F26389]"
                                                     />
-                                                    <label htmlFor={addon.id} className="text-sm flex-1">
-                                                        {addon.name}
-                                                    </label>
-                                                    <span className="text-sm font-bold">+₱{addon.defaultPrice}</span>
-                                                </div>
+                                                    <span className="flex-1">{a.name}</span>
+                                                    <span className="font-bold text-[#F26389]">+₱{(a.defaultPrice || 0).toLocaleString()}</span>
+                                                </label>
                                             ))}
                                         </div>
                                     </div>
                                 )}
 
-                                <div className="pt-2 pb-2 border-t border-gray-200 dark:border-white/10">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <label className="block text-sm font-bold uppercase">Custom Add-ons</label>
+                                {/* Custom Add-ons */}
+                                <div className="border-t border-[#f4f2f4] dark:border-white/10 pt-3">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs font-bold uppercase">Custom Add-ons</label>
                                         <button
                                             type="button"
-                                            onClick={handleAddCustomAddon}
-                                            className="px-2 py-1 text-[11px] font-bold uppercase bg-[#F26389]/10 text-[#F26389] border border-[#F26389]/30 rounded-lg hover:bg-[#F26389]/20 transition-colors"
+                                            onClick={() => setCustomAddons((p) => [...p, { id: `c-${Date.now()}`, name: '', price: 0, minutes: 0, qty: 1 }])}
+                                            className="text-[10px] font-black uppercase text-[#F26389] hover:underline"
                                         >
                                             + Add
                                         </button>
                                     </div>
-
-                                    {customAddons.length > 0 ? (
-                                        <div className="space-y-2 max-h-40 overflow-y-auto">
-                                            {customAddons.map((addon, index) => (
-                                                <div key={addon.id} className="flex gap-2 items-end">
-                                                    <div className="flex-1">
-                                                        <input
-                                                            type="text"
-                                                            value={addon.name}
-                                                            onChange={(e) => handleCustomAddonChange(index, 'name', e.target.value)}
-                                                            placeholder="Add-on name"
-                                                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                                        />
-                                                    </div>
-                                                    <div className="w-24">
-                                                        <input
-                                                            type="number"
-                                                            value={addon.price}
-                                                            onChange={(e) => handleCustomAddonChange(index, 'price', e.target.value)}
-                                                            placeholder="Price"
-                                                            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                                        />
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleRemoveCustomAddon(index)}
-                                                        className="px-2 py-2 text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
+                                    {customAddons.length === 0 && (
                                         <p className="text-xs text-gray-500 dark:text-gray-400 italic">No custom add-ons yet</p>
                                     )}
+                                    <div className="space-y-2">
+                                        {customAddons.map((a, i) => (
+                                            <div key={a.id} className="grid grid-cols-[1fr_64px_56px_32px_24px] gap-1 items-center">
+                                                <input
+                                                    value={a.name}
+                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                                                    placeholder="Name"
+                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={a.price}
+                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, price: Number(e.target.value) || 0 } : x))}
+                                                    placeholder="₱"
+                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={a.minutes}
+                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, minutes: Number(e.target.value) || 0 } : x))}
+                                                    placeholder="min"
+                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
+                                                />
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={a.qty}
+                                                    onChange={(e) => setCustomAddons((p) => p.map((x, j) => j === i ? { ...x, qty: Math.max(1, Number(e.target.value) || 1) } : x))}
+                                                    placeholder="qty"
+                                                    className="px-2 py-1.5 border border-[#e6e4e6] dark:border-white/10 rounded-lg text-xs bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389]"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCustomAddons((p) => p.filter((_, j) => j !== i))}
+                                                    className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded p-0.5 text-xs"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        ))}
+                                        {customAddons.length > 0 && (
+                                            <p className="text-[10px] text-[#b1b1b1]">Columns: Name · Price (₱) · Duration (min) · Qty</p>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className="lg:col-span-2 space-y-4">
+                                {/* Total */}
                                 {selectedService && (
-                                    <div className="pt-3 pb-3 border-t border-gray-200 dark:border-white/10">
-                                        <div className="flex justify-between items-center">
-                                            <span className="font-bold uppercase text-sm">Total:</span>
-                                            <span className="text-lg font-black text-[#F26389]">₱{calculateTotal().toLocaleString()}</span>
-                                        </div>
+                                    <div className="flex justify-between items-center py-3 border-t border-[#f4f2f4] dark:border-white/10">
+                                        <span className="font-bold uppercase text-sm">Total</span>
+                                        <span className="text-xl font-black text-[#F26389]">₱{calcTotal().toLocaleString()}</span>
                                     </div>
                                 )}
+                            </div>
 
-                                <div className="flex gap-3 pt-4">
+                            {/* Full-width footer */}
+                            <div className="lg:col-span-2 space-y-3">
+                                {overlapWarning && (
+                                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-bold">
+                                        ⚠️ {overlapWarning}
+                                    </div>
+                                )}
+                                {error && (
+                                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-600 text-xs font-bold">
+                                        {error}
+                                    </div>
+                                )}
+                                <div className="flex gap-3">
                                     <button
                                         type="button"
                                         onClick={onClose}
-                                        className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg font-bold uppercase text-sm hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                                        className="flex-1 px-4 py-2.5 border border-[#e6e4e6] dark:border-white/10 rounded-xl font-bold uppercase text-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
-                                        className="flex-1 px-4 py-2 bg-[#F26389] text-white rounded-lg font-bold uppercase text-sm hover:bg-[#BF637C] disabled:opacity-50 transition-colors"
+                                        className="flex-1 px-4 py-2.5 bg-[#F26389] text-white rounded-xl font-bold uppercase text-sm hover:bg-[#BF637C] disabled:opacity-50 transition-colors"
                                     >
-                                        {isSubmitting ? (isEditMode ? 'Updating...' : 'Creating...') : (isEditMode ? 'Update Booking' : 'Create Booking')}
+                                        {isSubmitting
+                                            ? (isEdit ? 'Saving...' : 'Creating...')
+                                            : (isEdit ? 'Save Changes' : 'Create Booking')}
                                     </button>
                                 </div>
                             </div>
