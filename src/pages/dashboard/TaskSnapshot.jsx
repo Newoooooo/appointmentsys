@@ -76,7 +76,7 @@ export const TaskSnapshot = ({ tasks, onDismiss }) => {
                                             "text-[9px] font-bold uppercase tracking-tighter mt-0.5",
                                             isOverdue ? "text-orange-500" : "text-gray-400"
                                         )}>
-                                            {task.title} is {dueLabel}
+                                            {dueLabel}
                                         </p>
                                     )}
                                 </div>
