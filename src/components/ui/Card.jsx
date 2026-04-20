@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 
-const Card = ({ children, className, hover = true, whileTap }) => {
+const Card = ({ children, className, hover = true, whileTap, ...rest }) => {
     return (
         <motion.div
             whileHover={hover ? { y: -5 } : {}}
@@ -12,6 +12,7 @@ const Card = ({ children, className, hover = true, whileTap }) => {
                 "overflow-visible relative",
                 className
             )}
+            {...rest}
         >
             {children}
         </motion.div>

@@ -388,6 +388,7 @@ export const BookingService = {
 
         return (existingBookings || []).some((booking) => {
             if (bookingId && booking.id === bookingId) return false;
+            if (booking.status === 'cancelled') return false;
 
             const bookingStart = toMinutes(booking.startTime || booking.time);
             const bookingEnd = toMinutes(booking.endTime);
@@ -777,6 +778,16 @@ export const TaskService = {
             return { success: true };
         } catch (error) {
             console.error('Error deleting task:', error);
+            throw error;
+        }
+    },
+
+    async dismissTaskFromDashboard(taskId) {
+        try {
+            await updateDocument('tasks', taskId, { dismissedFromDashboard: true });
+            return { success: true };
+        } catch (error) {
+            console.error('Error dismissing task:', error);
             throw error;
         }
     }
