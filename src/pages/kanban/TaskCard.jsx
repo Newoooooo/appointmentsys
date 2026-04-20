@@ -1,11 +1,24 @@
-import { Clock, GripVertical, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, GripVertical, ChevronLeft, ChevronRight, CalendarClock } from "lucide-react";
 import React, { useRef } from "react";
 import Card from "../../components/ui/Card.jsx";
 import clsx from "clsx";
 
+const getDueLabel = (dueAt) => {
+    if (!dueAt) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueAt);
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return { label: 'Due today', overdue: false };
+    if (diffDays > 0) return { label: `Due in ${diffDays}d`, overdue: false };
+    return { label: `${Math.abs(diffDays)}d overdue`, overdue: true };
+};
+
 export const TaskCard = ({ task, columns, onStatusChange, onClick }) => {
     const isHigh = task.priority === 'high';
     const dragRef = useRef(null);
+    const dueInfo = getDueLabel(task.dueAt);
 
     const currentIndex = columns ? columns.findIndex(c => c.name === task.status) : -1;
     const canGoBack = currentIndex > 0;
@@ -79,6 +92,17 @@ export const TaskCard = ({ task, columns, onStatusChange, onClick }) => {
                             <Clock size={10} className="text-[#F26389]/40" />
                             {task.time}
                         </p>
+                        {dueInfo && (
+                            <p className={clsx(
+                                "text-[8px] font-bold uppercase flex items-center gap-1 tracking-wider",
+                                dueInfo.overdue
+                                    ? "text-[#F26389]"
+                                    : "text-[#b1b1b1]"
+                            )}>
+                                <CalendarClock size={10} className={dueInfo.overdue ? "text-[#F26389]" : "text-[#F26389]/40"} />
+                                {dueInfo.label}
+                            </p>
+                        )}
                     </div>
 
                     <div className="flex items-center gap-1">

@@ -1,7 +1,19 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, CalendarClock } from 'lucide-react';
 import clsx from 'clsx';
+
+const getDueLabel = (dueAt) => {
+    if (!dueAt) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueAt);
+    due.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((due - today) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return { label: 'Due today', overdue: false };
+    if (diffDays > 0) return { label: `Due in ${diffDays}d`, overdue: false };
+    return { label: `${Math.abs(diffDays)}d overdue`, overdue: true };
+};
 
 export const ListView = ({ columns, tasks, onTaskClick }) => (
     <motion.div
@@ -22,7 +34,9 @@ export const ListView = ({ columns, tasks, onTaskClick }) => (
                         <span className="text-[10px] font-black opacity-20">{columnTasks.length}</span>
                     </div>
                     <div className="grid grid-cols-1 gap-2 pl-5 border-l border-[#f4f2f4] dark:border-white/5">
-                        {columnTasks.map(task => (
+                        {columnTasks.map(task => {
+                            const dueInfo = getDueLabel(task.dueAt);
+                            return (
                             <button
                                 key={task.id}
                                 type="button"
@@ -36,9 +50,21 @@ export const ListView = ({ columns, tasks, onTaskClick }) => (
                                         <p className="text-[8px] font-bold text-[#b1b1b1] uppercase tracking-widest mt-0.5">{task.tag}</p>
                                     </div>
                                 </div>
-                                <ChevronRight size={14} className="text-[#b1b1b1] group-hover:translate-x-1 transition-transform" />
+                                <div className="flex items-center gap-3">
+                                    {dueInfo && (
+                                        <p className={clsx(
+                                            "text-[8px] font-bold uppercase flex items-center gap-1 tracking-wider",
+                                            dueInfo.overdue ? "text-[#F26389]" : "text-[#b1b1b1]"
+                                        )}>
+                                            <CalendarClock size={10} className={dueInfo.overdue ? "text-[#F26389]" : "text-[#F26389]/40"} />
+                                            {dueInfo.label}
+                                        </p>
+                                    )}
+                                    <ChevronRight size={14} className="text-[#b1b1b1] group-hover:translate-x-1 transition-transform" />
+                                </div>
                             </button>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             );
