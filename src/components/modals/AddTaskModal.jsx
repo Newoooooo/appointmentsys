@@ -8,7 +8,8 @@ export const AddTaskModal = ({ isOpen, onClose, onSuccess }) => {
         title: '',
         tag: '',
         priority: 'medium',
-        status: 'To Do',
+        status: 'pending',
+        dueAt: '',
         time: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,13 +35,19 @@ export const AddTaskModal = ({ isOpen, onClose, onSuccess }) => {
                 return;
             }
 
-            await TaskService.addTask(formData);
+            const taskData = {
+                ...formData,
+                dueAt: formData.dueAt ? new Date(formData.dueAt).toISOString() : null,
+            };
+
+            await TaskService.addTask(taskData);
 
             setFormData({
                 title: '',
                 tag: '',
                 priority: 'medium',
-                status: 'To Do',
+                status: 'pending',
+                dueAt: '',
                 time: ''
             });
             onSuccess?.();
@@ -53,7 +60,12 @@ export const AddTaskModal = ({ isOpen, onClose, onSuccess }) => {
     };
 
     const priorities = ['low', 'medium', 'high'];
-    const statuses = ['To Do', 'In Progress', 'Reviewing', 'Completed'];
+    const statuses = [
+        { value: 'pending', label: 'Pending' },
+        { value: 'in_progress', label: 'In Progress' },
+        { value: 'completed', label: 'Completed' },
+        { value: 'sent', label: 'Sent' },
+    ];
     const tags = ['Editing', 'Album', 'Finance', 'Booking', 'Marketing', 'Logistics', 'QA', 'Client', 'Delivery', 'Admin', 'Photoshoot', 'Customer Service'];
 
     return (
@@ -139,21 +151,20 @@ export const AddTaskModal = ({ isOpen, onClose, onSuccess }) => {
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors text-sm"
                                     >
-                                        {statuses.map(status => (
-                                            <option key={status} value={status}>{status}</option>
+                                        {statuses.map(s => (
+                                            <option key={s.value} value={s.value}>{s.label}</option>
                                         ))}
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-bold uppercase mb-2">Time Estimate</label>
+                                    <label className="block text-sm font-bold uppercase mb-2">Due Date</label>
                                     <input
-                                        type="text"
-                                        name="time"
-                                        value={formData.time}
+                                        type="date"
+                                        name="dueAt"
+                                        value={formData.dueAt}
                                         onChange={handleInputChange}
                                         className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg bg-white dark:bg-[#0c0c0c] focus:outline-none focus:border-[#F26389] transition-colors"
-                                        placeholder="2h"
                                     />
                                 </div>
                             </div>

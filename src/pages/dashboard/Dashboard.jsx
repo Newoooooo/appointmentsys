@@ -21,6 +21,15 @@ const Dashboard = () => {
     const [activities, setActivities] = useState([]);
     const [inquiries, setInquiries] = useState([]);
     const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+
+    const handleDismissTask = async (taskId) => {
+        setTasks(prev => prev.filter(t => t.id !== taskId));
+        try {
+            await TaskService.dismissTaskFromDashboard(taskId);
+        } catch (error) {
+            console.error('Error dismissing task:', error);
+        }
+    };
     
     useEffect(() => {
         const loadDashboardData = async () => {
@@ -46,15 +55,18 @@ const Dashboard = () => {
                 }));
                 setSchedule(recentBookings);
                 
-                // Load tasks
+                // Load tasks — filter out completed/sent/dismissed, sort by urgency
                 const tasksData = await TaskService.getTasks();
-                const formattedTasks = tasksData.slice(0, 3).map(task => ({
-                    title: task.title,
-                    priority: task.priority || 'Medium',
-                    dueDate: task.time || 'Today',
-                    completed: task.status === 'Completed'
-                }));
-                setTasks(formattedTasks);
+                const COMPLETED_STATUSES = ['completed', 'sent'];
+                const activeTasks = tasksData
+                    .filter(task =>
+                        !COMPLETED_STATUSES.includes(task.status) &&
+                        !task.dismissedFromDashboard &&
+                        task.dueAt
+                    )
+                    .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
+                    .slice(0, 4);
+                setTasks(activeTasks);
                 
                 // Load recent activities
                 const activitiesData = await DashboardService.getRecentActivity();
@@ -117,7 +129,7 @@ const Dashboard = () => {
                 </section>
 
                 <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start ">
-                        <TaskSnapshot tasks={tasks}/>
+                        <TaskSnapshot tasks={tasks} onDismiss={handleDismissTask}/>
                         <RecentActivity activities={activities}/>
                 </section>
 

@@ -779,6 +779,16 @@ export const TaskService = {
             console.error('Error deleting task:', error);
             throw error;
         }
+    },
+
+    async dismissTaskFromDashboard(taskId) {
+        try {
+            await updateDocument('tasks', taskId, { dismissedFromDashboard: true });
+            return { success: true };
+        } catch (error) {
+            console.error('Error dismissing task:', error);
+            throw error;
+        }
     }
 };
 

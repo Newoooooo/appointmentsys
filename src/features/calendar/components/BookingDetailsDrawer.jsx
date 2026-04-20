@@ -235,7 +235,7 @@ const BookingDetailsDrawer = ({
                                 <div>
                                     <h3 className="text-[9px] font-black uppercase tracking-[0.18em] text-[#b1b1b1] mb-3">Actions</h3>
                                     <div className="flex flex-col gap-2">
-                                        {(activeBooking.status === 'scheduled' || activeBooking.status === 'rescheduled') && (
+                                        {activeBooking.status !== 'cancelled' && activeBooking.status !== 'completed' && activeBooking.status !== 'pending_edit' && (
                                             <button
                                                 onClick={() => onMarkPendingEdit?.(activeBooking)}
                                                 className="w-full px-4 py-2.5 bg-green-500/10 border border-green-500/30 text-green-600 dark:text-green-400 rounded-xl font-bold uppercase text-xs hover:bg-green-500/20 transition-colors"
