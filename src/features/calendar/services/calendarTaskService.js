@@ -5,7 +5,11 @@ const COL = 'tasks';
 
 export const CalendarTaskService = {
   async createPendingEditTask(booking) {
-    const dueAt = new Date();
+    // Base the deadline on the appointment's own date, not today
+    const base = booking.fullDate
+      ? new Date(`${booking.fullDate}T00:00:00`)
+      : new Date();
+    const dueAt = new Date(base);
     dueAt.setDate(dueAt.getDate() + PENDING_EDIT_TASK_DAYS);
     return addDocument(COL, {
       title: `Edit photos: ${booking.clientName || 'Client'} — ${booking.date}`,
