@@ -59,11 +59,11 @@ export const Sidebar = ({ isOpen }) => {
                 <div className="flex items-center gap-3 mb-10 px-2">
                     <motion.div
                         whileHover={{ rotate: -10, scale: 1.1 }}
-                        className="w-10 h-10 bg-[#F26389] rounded-2xl flex items-center justify-center text-white font-black text-xl shadow-lg"
+                        className="w-10 h-10 rounded-2xl overflow-hidden shadow-lg shrink-0"
                     >
-                        B
+                        <img src="https://github.com/user-attachments/assets/d4760a11-755d-4ce8-85f1-cfd689d96cac" alt="Dream & Snap logo" className="w-full h-full object-cover" />
                     </motion.div>
-                    <span className="text-xl font-black tracking-tighter text-[#2f3035] dark:text-[#fdfcfc]">bookly</span>
+                    <span className="text-xl font-black tracking-tighter text-[#2f3035] dark:text-[#fdfcfc]">Dream & Snap</span>
                 </div>
 
                 <nav className="space-y-2 relative flex-1">

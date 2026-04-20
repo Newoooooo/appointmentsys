@@ -7,8 +7,10 @@ const LandingPage = () => (
         {/* Navigation */}
         <nav className="flex items-center justify-between px-8 py-6 max-w-7xl mx-auto">
             <div className="flex items-center gap-2">
-                <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center text-white font-black text-xl">B</div>
-                <span className="text-2xl font-bold tracking-tight text-slate-900">Bookly.</span>
+                <div className="w-10 h-10 rounded-xl overflow-hidden shrink-0">
+                    <img src="https://github.com/user-attachments/assets/d4760a11-755d-4ce8-85f1-cfd689d96cac" alt="Dream & Snap logo" className="w-full h-full object-cover" />
+                </div>
+                <span className="text-2xl font-bold tracking-tight text-slate-900">Dream & Snap</span>
             </div>
             <div className="hidden md:flex items-center gap-8 text-slate-600 font-medium">
                 <a href="#" className="hover:text-amber-600">Features</a>
@@ -50,7 +52,7 @@ const LandingPage = () => (
                         <div className="flex -space-x-3">
                             {[1,2,3,4].map(i => <div key={i} className="w-10 h-10 rounded-full border-4 border-white bg-slate-200" />)}
                         </div>
-                        <p className="text-sm text-slate-500 font-medium">Join 2,000+ businesses growing with Bookly</p>
+                        <p className="text-sm text-slate-500 font-medium">Join 2,000+ businesses growing with Dream & Snap</p>
                     </div>
                 </motion.div>
 
