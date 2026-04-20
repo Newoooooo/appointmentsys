@@ -388,6 +388,7 @@ export const BookingService = {
 
         return (existingBookings || []).some((booking) => {
             if (bookingId && booking.id === bookingId) return false;
+            if (booking.status === 'cancelled') return false;
 
             const bookingStart = toMinutes(booking.startTime || booking.time);
             const bookingEnd = toMinutes(booking.endTime);
